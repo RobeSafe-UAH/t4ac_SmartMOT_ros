@@ -22,7 +22,7 @@
 
     </group>
 
-    <node pkg="t4ac_SmartMOT_ros" type="t4ac_SmartMOT_ros_node" name="t4ac_SmartMOT_ros_node" output="screen"/>
+    <node pkg="t4ac_SmartMOT_ros" type="t4ac_SmartMOT_ros_node.py" name="t4ac_SmartMOT_ros_node" output="screen"/>
 </launch>
 
 <!-- output="screen" -->

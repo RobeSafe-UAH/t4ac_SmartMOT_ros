@@ -72,7 +72,7 @@ path = os.path.curdir + '/results' + filename
 header_synchro = 5
 
 class SmartMOT:
-    def __init__(self,args):
+    def __init__(self):
         # Auxiliar variables
        
         self.init_scene = False
@@ -596,7 +596,7 @@ def main():
     node_name = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/node_name')
     rospy.init_node(node_name, anonymous=True)
     
-    Smart_MOT()
+    SmartMOT()
 
     try:
         rospy.spin()
