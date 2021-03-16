@@ -71,7 +71,7 @@ filename = ''
 path = os.path.curdir + '/results' + filename
 header_synchro = 5
 
-class Map_Filtered_MOT:
+class SmartMOT:
     def __init__(self,args):
         # Auxiliar variables
        
@@ -104,7 +104,7 @@ class Map_Filtered_MOT:
         self.ego_trajectory_forecasted_marker_list = visualization_msgs.msg.MarkerArray()
         self.seconds_ahead = seconds_ahead
 
-        # MOT-Prediction Callback 
+        # SmartMOT Callback 
 
         self.start = float(0)
         self.end = float(0)
@@ -124,11 +124,11 @@ class Map_Filtered_MOT:
 
         # Arguments from ROS params
 
-        self.display = args[0]
-        self.trajectory_prediction = args[1]
-        self.ros = args[2]
-        self.grid = args[3]
-        self.rc_max = args[4]
+        self.display = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/display')
+        self.trajectory_prediction = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/trajectory_prediction')
+        self.ros = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/use_ros')
+        self.grid = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/use_grid')
+        self.rc_max = rospy.get_param('/t4ac/control/classic/t4ac_LQR_ros/t4ac_LQR_ros_node/road_curvature_max')
         
         # ROS publishers
 
@@ -143,9 +143,9 @@ class Map_Filtered_MOT:
 
         if not self.filter_hdmap:
             self.sub_road_curvature = rospy.Subscriber("/control/rc", std_msgs.msg.Float64, self.road_curvature_callback)
-        self.detections_topic = "/t4ac/perception/detection/merged_obstacles"
-        self.odom_topic = "/t4ac/localization/pose"
-        self.monitorized_lanes_topic = "/t4ac/mapping/monitor/lanes"
+        self.detections_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/sub_BEV_merged_obstacles')
+        self.odom_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/sub_localization_pose')
+        self.monitorized_lanes_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/sub_monitorized_lanes')
 
         self.detections_subscriber = Subscriber(self.detections_topic, BEV_detections_list)
         self.odom_subscriber = Subscriber(self.odom_topic, nav_msgs.msg.Odometry)
@@ -155,7 +155,7 @@ class Map_Filtered_MOT:
                                self.odom_subscriber, 
                                self.monitorized_lanes_subscriber], 
                                header_synchro)
-        ts.registerCallback(self.mot_prediction_callback)
+        ts.registerCallback(self.SmartMOT_callback)
         
         # Listeners
         
@@ -207,7 +207,7 @@ class Map_Filtered_MOT:
 
         self.pub_monitorized_area.publish(geometric_monitorized_area_marker)
         
-    def mot_prediction_callback(self, detections_rosmsg, odom_rosmsg, monitorized_lanes_rosmsg):
+    def SmartMOT_callback(self, detections_rosmsg, odom_rosmsg, monitorized_lanes_rosmsg):
         """
         """
 
@@ -588,32 +588,15 @@ class Map_Filtered_MOT:
                                self.odom_subscriber, 
                                self.monitorized_lanes_subscriber], 
                                header_synchro)
-        ts.registerCallback(self.mot_prediction_callback)   
+        ts.registerCallback(self.SmartMOT_callback)   
 
 def main():
     print("Init the node")
 
-    rospy.init_node('map_filtered_mot_node', anonymous=True)
+    node_name = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/node_name')
+    rospy.init_node(node_name, anonymous=True)
     
-    args = []
-    display = rospy.get_param('/t4ac/map-filtered-mot/display')
-    args.append(display)
-    trajectory_forecasting = rospy.get_param('/t4ac/map-filtered-mot/trajectory-forecasting')
-    args.append(trajectory_forecasting)
-    use_ros = rospy.get_param('/t4ac/map-filtered-mot/use-ros')
-    args.append(use_ros)
-    use_grid = rospy.get_param('/t4ac/map-filtered-mot/use-grid')
-    args.append(use_grid)
-    rc_max = rospy.get_param("/controller/rc_max")
-    args.append(rc_max)
-
-    print("Display: ", display)
-    print("Trajectory forecasting: ", trajectory_forecasting)
-    print("Publish real-world data: ", use_ros)
-    print("Use grid: ", use_grid)
-    print("Road curvature max: ", rc_max)
-    
-    Map_Filtered_MOT(args)
+    Smart_MOT()
 
     try:
         rospy.spin()
