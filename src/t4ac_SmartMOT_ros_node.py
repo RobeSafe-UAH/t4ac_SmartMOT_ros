@@ -51,12 +51,13 @@ from aux_functions import tracking_functions
 sys.path.insert(0,'/opt/ros/melodic/lib/python2.7/dist-packages')
 import rospy
 import visualization_msgs.msg
+import sensor_msgs.msg
 import nav_msgs.msg
 import std_msgs.msg
 import tf 
 
 from t4ac_msgs.msg import BEV_detection, BEV_detections_list, MonitorizedLanes, Node
-from message_filters import TimeSynchronizer, Subscriber
+from message_filters import TimeSynchronizer, ApproximateTimeSynchronizer, Subscriber
 
 # Auxiliar variables
 
@@ -69,7 +70,8 @@ seconds_ahead = 2 # Predict all trajectories at least x seconds ahead
     
 filename = ''
 path = os.path.curdir + '/results' + filename
-header_synchro = 5
+header_synchro = 100
+slop = 1.0
 
 class SmartMOT:
     def __init__(self):
@@ -151,13 +153,11 @@ class SmartMOT:
         self.odom_subscriber = Subscriber(self.odom_topic, nav_msgs.msg.Odometry)
         self.monitorized_lanes_subscriber = Subscriber(self.monitorized_lanes_topic, MonitorizedLanes)
 
-        ts = TimeSynchronizer([self.detections_subscriber, 
+        ts = ApproximateTimeSynchronizer([self.detections_subscriber, 
                                self.odom_subscriber, 
                                self.monitorized_lanes_subscriber], 
-                               header_synchro)
+                               header_synchro, slop)
         ts.registerCallback(self.SmartMOT_callback)
-        
-        # Listeners
         
         self.listener = tf.TransformListener()
 
@@ -206,11 +206,15 @@ class SmartMOT:
         geometric_monitorized_area_marker.scale.z = 0.2
 
         self.pub_monitorized_area.publish(geometric_monitorized_area_marker)
-        
+      
     def SmartMOT_callback(self, detections_rosmsg, odom_rosmsg, monitorized_lanes_rosmsg):
         """
         """
-
+        print(">>>>>>>>>>>>>>>>>>")
+        print("Detections: ", detections_rosmsg.header.stamp.to_sec())
+        print("Odom: ", odom_rosmsg.header.stamp.to_sec())
+        print("Lanes: ", monitorized_lanes_rosmsg.header.stamp.to_sec())
+        """
         try:                                                         # Target # Pose
             (translation,quaternion) = self.listener.lookupTransform('/map', '/ego_vehicle/lidar/lidar1', rospy.Time(0)) 
             # rospy.Time(0) get us the latest available transform
@@ -223,10 +227,6 @@ class SmartMOT:
             print("\033[1;33m"+"TF exception"+'\033[0;m')
 
         self.start = time.time()
-
-        self.detections_subscriber.unregister()
-        self.odom_subscriber.unregister()
-        self.monitorized_lanes_subscriber.unregister()
 
         # Initialize the scene
 
@@ -287,7 +287,7 @@ class SmartMOT:
         print("----------------")
 
         # Initialize ROS and monitors variables
-
+        
         self.trackers_marker_list = visualization_msgs.msg.MarkerArray() # Initialize trackers list
         monitorized_area_colours = []
 
@@ -304,7 +304,7 @@ class SmartMOT:
         timer_rosmsg = detections_rosmsg.header.stamp.to_sec()
 
         # Predict the ego-vehicle trajectory
-
+        
         monitors_functions.ego_vehicle_prediction(self,odom_rosmsg)
         print("Braking distance ego vehicle: ", float(self.ego_braking_distance))
 
@@ -321,7 +321,7 @@ class SmartMOT:
 
         ego_vel_px = 0 # TODO: Delete this
         angle_bb = 0 # TODO: Delete this
-
+        
         if (len(bboxes_features) > 0): # At least one object was detected
             trackers,object_types,object_scores,object_observation_angles,dynamic_trackers,static_trackers = self.mot_tracker.update(bboxes_features,types,
                                                                                                                                      ego_vel_px,
@@ -522,7 +522,7 @@ class SmartMOT:
             if self.collision_flag.data:
                 print("suma C")
                 self.cont += 1
-
+        
         print("cont: ", self.cont)
         if self.cont >= 3:
             self.collision_flag.data = False
@@ -548,7 +548,7 @@ class SmartMOT:
         except:
             message = 'Static trackers: ' + str(0)
         cv2.putText(output_image,message,(30,80), cv2.FONT_HERSHEY_PLAIN, 1.5, [255,255,255], 2)
-
+        
         # Publish the list of tracked obstacles and predicted collision
         
         print("Data: ", nearest_distance.data)
@@ -579,16 +579,7 @@ class SmartMOT:
         if(self.display):
             cv2.imshow("SORT tracking", output_image)
             cv2.waitKey(1)
-        
-        self.detections_subscriber = Subscriber(self.detections_topic, BEV_detections_list)
-        self.odom_subscriber = Subscriber(self.odom_topic, nav_msgs.msg.Odometry)
-        self.monitorized_lanes_subscriber = Subscriber(self.monitorized_lanes_topic, MonitorizedLanes)
-
-        ts = TimeSynchronizer([self.detections_subscriber, 
-                               self.odom_subscriber, 
-                               self.monitorized_lanes_subscriber], 
-                               header_synchro)
-        ts.registerCallback(self.SmartMOT_callback)   
+        """
 
 def main():
     print("Init the node")
