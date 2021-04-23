@@ -1,2 +1,2 @@
-git push robesafe_github master
-git push robesafe_server master
+git push robesafe_github dev
+git push robesafe_server dev
