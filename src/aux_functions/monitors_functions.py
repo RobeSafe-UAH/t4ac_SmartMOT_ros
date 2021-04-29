@@ -196,10 +196,9 @@ def inside_lane(lane, point,type_object):
         in_polygon = inside_polygon(point, polygon)
         in_road = inside_polygon(point, road)
 
-        
-        #print("Is inside polygon: ", in_polygon)
-        #print("Is inside road: ", in_road)
         """
+        print("Is inside polygon: ", in_polygon)
+        print("Is inside road: ", in_road)
         print("Nearest distance: ", nearest_distance)
         print("Point: ", point.x, point.y)
         for pt in polygon:

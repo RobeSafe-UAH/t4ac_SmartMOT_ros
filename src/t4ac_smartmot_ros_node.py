@@ -155,11 +155,11 @@ class SmartMOT:
         self.odom_subscriber = Subscriber(self.odom_topic, nav_msgs.msg.Odometry)
         self.monitorized_lanes_subscriber = Subscriber(self.monitorized_lanes_topic, MonitorizedLanes)
 
-        ts = ApproximateTimeSynchronizer([self.detections_subscriber, 
-                               self.odom_subscriber, 
-                               self.monitorized_lanes_subscriber], 
-                               header_synchro, slop)
-        ts.registerCallback(self.SmartMOT_callback)
+        self.ts = ApproximateTimeSynchronizer([self.detections_subscriber, 
+                                               self.odom_subscriber, 
+                                               self.monitorized_lanes_subscriber], 
+                                               header_synchro, slop)
+        self.ts.registerCallback(self.SmartMOT_callback)
         
         self.listener = tf.TransformListener()
 
@@ -216,7 +216,7 @@ class SmartMOT:
         # print("Detections: ", detections_rosmsg.header.stamp.to_sec())
         # print("Odom: ", odom_rosmsg.header.stamp.to_sec())
         # print("Lanes: ", monitorized_lanes_rosmsg.header.stamp.to_sec())
- 
+
         try:                                                         # Target        # Pose
             (translation,quaternion) = self.listener.lookupTransform(self.map_frame, self.lidar_frame, rospy.Time(0)) 
             # rospy.Time(0) get us the latest available transform
@@ -227,6 +227,8 @@ class SmartMOT:
 
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             print("\033[1;33m"+"TF exception"+'\033[0;m')
+
+            self.ts.registerCallback(self.SmartMOT_callback)
 
         self.start = time.time()
 
@@ -315,7 +317,81 @@ class SmartMOT:
         print("\nNumer of total detections: ", len(detections_rosmsg.bev_detections_list))
         bboxes_features,types = sort_functions.bbox_to_xywh_cls_conf(self,detections_rosmsg)
         print("Number of relevant detections: ", len(bboxes_features)) # score > detection_threshold
-        
+
+        # Emergency break (Only detection)
+
+        if not self.collision_flag.data:
+            for bbox,type_object in zip(bboxes_features,types):
+                for lane in monitorized_lanes_rosmsg.lanes: 
+                    if (lane.role == "current" and len(lane.left.way) >= 2):
+                        detection = Node()
+                        bbox = bbox.reshape(1,-1)
+                        global_pos = sort_functions.store_global_coordinates(self.tf_map2lidar,bbox)
+                        detection.x = global_pos[0,0]
+                        # detection.y = -global_pos[1,0] # N.B. In CARLA this coordinate is the opposite
+                        detection.y = global_pos[1,0]
+                        in_polygon, in_road, particular_monitorized_area, dist2centroid = monitors_functions.inside_lane(lane,detection,type_object)
+                        
+                        if in_polygon or in_road:
+                            #distance_to_object = monitors_functions.calculate_distance_to_nearest_object_inside_route(monitorized_lanes_rosmsg,global_pos)
+                            
+                            ego_x_global = odom_rosmsg.pose.pose.position.x
+                            ego_y_global = -odom_rosmsg.pose.pose.position.y
+                            distance_to_object = math.sqrt(pow(ego_x_global-detection.x,2)+pow(ego_y_global-detection.y,2))
+                            print("Distance to object: ", distance_to_object)
+
+                            if distance_to_object < self.nearest_object_in_route:
+                                self.nearest_object_in_route = distance_to_object
+                                nearest_distance.data = float(self.nearest_object_in_route)
+                            print("Braking distance: ", self.ego_braking_distance)
+                            
+                            if distance_to_object < self.ego_braking_distance:
+                                print("Break")
+                                self.collision_flag.data = True
+                                self.pub_collision.publish(self.collision_flag)
+                                self.emergency_break_timer = time.time()
+                                self.cont = 0
+                                break
+                else: 
+                    continue 
+                break
+        else:
+            dist = 99999
+            for bbox,type_object in zip(bboxes_features,types):
+                for lane in monitorized_lanes_rosmsg.lanes: 
+                    if (lane.role == "current" and len(lane.left.way) >= 2):
+                        detection = Node()
+                        bbox = bbox.reshape(1,-1)
+                        global_pos = sort_functions.store_global_coordinates(self.tf_map2lidar,bbox)
+                        detection.x = global_pos[0,0]
+                        #detection.y = -global_pos[1,0] # N.B. In CARLA this coordinate is the opposite
+                        detection.y = global_pos[1,0]
+                        in_polygon, in_road, particular_monitorized_area, dist2centroid = monitors_functions.inside_lane(lane,detection,type_object)
+                        print("inside: ", is_inside)
+                        
+                        if in_polygon or in_road:
+                            ego_x_global = odom_rosmsg.pose.pose.position.x
+                            ego_y_global = -odom_rosmsg.pose.pose.position.y
+                            aux = math.sqrt(pow(ego_x_global-detection.x,2)+pow(ego_y_global-detection.y,2))
+                            if aux < dist:
+                                dist = aux
+                        break
+            if dist > 5:
+                self.cont += 1
+            else:
+                self.cont = 0
+            print("distance to object after collision: ", dist)
+            print("cont: ", self.cont)
+        if self.cont >= 3:
+            self.collision_flag.data = False
+            self.nearest_object_in_route = 50000
+            nearest_distance.data = float(self.nearest_object_in_route)
+        print("Data: ", nearest_distance.data)
+        print("Collision: ", self.collision_flag.data)
+        self.pub_nearest_object_distance.publish(nearest_distance)
+        self.pub_collision.publish(self.collision_flag)
+
+        """
         ## Multi-Object Tracking
 
         # TODO: Publish on tracked_obstacle message instead of visualization marker
@@ -520,7 +596,7 @@ class SmartMOT:
             if self.collision_flag.data:
                 # print("suma C")
                 self.cont += 1
-        """
+        
         # print("cont: ", self.cont)
         if self.cont >= 3:
             self.collision_flag.data = False
@@ -577,7 +653,7 @@ class SmartMOT:
         if(self.display):
             cv2.imshow("SORT tracking", output_image)
             cv2.waitKey(1)
-        
+        """
 
 def main():
     print("Init the node")
