@@ -126,11 +126,13 @@ class SmartMOT:
 
         # Arguments from ROS params
 
-        self.display = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/display')
-        self.trajectory_prediction = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/trajectory_prediction')
-        self.ros = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/use_ros')
-        self.grid = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/use_grid')
-        self.rc_max = rospy.get_param('/t4ac/control/classic/t4ac_LQR_ros/t4ac_LQR_ros_node/road_curvature_max')
+        self.display = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/display')
+        self.trajectory_prediction = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/trajectory_prediction')
+        self.ros = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/use_ros')
+        self.grid = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/use_grid')
+        self.rc_max = rospy.get_param('/t4ac/control/classic/t4ac_controller/t4ac_controller_node/rc_max')
+        self.map_frame = rospy.get_param('t4ac/frames/map')
+        self.lidar_frame = rospy.get_param('t4ac/frames/laser')
         
         # ROS publishers
 
@@ -145,9 +147,9 @@ class SmartMOT:
 
         if not self.filter_hdmap:
             self.sub_road_curvature = rospy.Subscriber("/control/rc", std_msgs.msg.Float64, self.road_curvature_callback)
-        self.detections_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/sub_BEV_merged_obstacles')
-        self.odom_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/sub_localization_pose')
-        self.monitorized_lanes_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/sub_monitorized_lanes')
+        self.detections_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/sub_BEV_merged_obstacles')
+        self.odom_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/sub_localization_pose')
+        self.monitorized_lanes_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/sub_monitorized_lanes')
 
         self.detections_subscriber = Subscriber(self.detections_topic, BEV_detections_list)
         self.odom_subscriber = Subscriber(self.odom_topic, nav_msgs.msg.Odometry)
@@ -186,7 +188,7 @@ class SmartMOT:
 
         geometric_monitorized_area_marker = visualization_msgs.msg.Marker()
 
-        geometric_monitorized_area_marker.header.frame_id = "/ego_vehicle/lidar/lidar1"
+        geometric_monitorized_area_marker.header.frame_id = self.lidar_frame
         geometric_monitorized_area_marker.ns = "geometric_monitorized_area"
         geometric_monitorized_area_marker.action = geometric_monitorized_area_marker.ADD
         geometric_monitorized_area_marker.lifetime = rospy.Duration.from_sec(1)
@@ -210,13 +212,13 @@ class SmartMOT:
     def SmartMOT_callback(self, detections_rosmsg, odom_rosmsg, monitorized_lanes_rosmsg):
         """
         """
-        print(">>>>>>>>>>>>>>>>>>")
-        print("Detections: ", detections_rosmsg.header.stamp.to_sec())
-        print("Odom: ", odom_rosmsg.header.stamp.to_sec())
-        print("Lanes: ", monitorized_lanes_rosmsg.header.stamp.to_sec())
-        """
-        try:                                                         # Target # Pose
-            (translation,quaternion) = self.listener.lookupTransform('/map', '/ego_vehicle/lidar/lidar1', rospy.Time(0)) 
+        # print(">>>>>>>>>>>>>>>>>>")
+        # print("Detections: ", detections_rosmsg.header.stamp.to_sec())
+        # print("Odom: ", odom_rosmsg.header.stamp.to_sec())
+        # print("Lanes: ", monitorized_lanes_rosmsg.header.stamp.to_sec())
+ 
+        try:                                                         # Target        # Pose
+            (translation,quaternion) = self.listener.lookupTransform(self.map_frame, self.lidar_frame, rospy.Time(0)) 
             # rospy.Time(0) get us the latest available transform
             rot_matrix = tf.transformations.quaternion_matrix(quaternion)
             
@@ -306,7 +308,7 @@ class SmartMOT:
         # Predict the ego-vehicle trajectory
         
         monitors_functions.ego_vehicle_prediction(self,odom_rosmsg)
-        print("Braking distance ego vehicle: ", float(self.ego_braking_distance))
+        #print("Ego vehicle braking distance: ", float(self.ego_braking_distance))
 
         # Convert input data to bboxes to perform Multi-Object Tracking 
 
@@ -332,23 +334,18 @@ class SmartMOT:
                                                                                                                                      timer_rosmsg,
                                                                                                                                      angle_bb,
                                                                                                                                      self.geometric_monitorized_area)
-
-
-
-
-            
-            
-            #print("Number of trackers: ", len(trackers))
+                                                                                                                                     
+            print("Number of trackers: ", len(trackers))
             if len(dynamic_trackers.shape) == 3:
-                #print("Dynamic trackers", dynamic_trackers.shape[1])
+                print("Dynamic trackers", dynamic_trackers.shape[1])
                 ndt = dynamic_trackers.shape[1]
             else:
-                #print("Dynamic trackers: ", 0)
+                print("Dynamic trackers: ", 0)
                 ndt = 0
-            #print("Static trackers: ", static_trackers.shape[0])
+            print("Static trackers: ", static_trackers.shape[0])
 
             id_nearest = -1
-
+            
             if (len(trackers) > 0): # At least one object was tracked
                 for i,tracker in enumerate(trackers): 
                     object_type  = object_types[i]
@@ -369,13 +366,14 @@ class SmartMOT:
                             monitors_functions.store_kitti(num_image,path,object_type,world_features,object_properties)
 
                     if (self.display):
+                        print("Tracker: ", tracker)
                         my_thickness = -1
                         geometric_functions.compute_and_draw(tracker,color,my_thickness,output_image)
 
                     label = 'ID %06d'%tracker[5].astype(int)
                     cv2.putText(output_image,label,(tracker[0].astype(int),tracker[1].astype(int)-20), cv2.FONT_HERSHEY_PLAIN, 1.5, [255,255,255], 2)
                     cv2.putText(output_image,object_type,(tracker[0].astype(int),tracker[1].astype(int)-40), cv2.FONT_HERSHEY_PLAIN, 1.5, [255,255,255], 2)
-                
+                    
                     # Evaluate if there is some obstacle in lane and calculate nearest distance
                     
                     if self.filter_hdmap:
@@ -431,7 +429,7 @@ class SmartMOT:
                             print("distance: ", distance_to_object)
                             if distance_to_object < self.nearest_object_in_route:
                                 self.nearest_object_in_route = distance_to_object
-                    
+                     
                 print("Collision: ", self.collision_flag.data)
                 print("trackers in route: ", trackers_in_route)
                 print("Distance nearest: ", self.nearest_object_in_route)
@@ -458,7 +456,7 @@ class SmartMOT:
                             
                             if (self.ros):
                                 object_type = "trajectory_prediction"
-                                monitors_functions.tracker_to_topic(self,e,object_type,color,j) 
+                                monitors_functions.tracker_to_topic_real(self,e,object_type,color,j) 
 
                         # Predict possible collision (including the predicted bounding boxes)
                         
@@ -506,8 +504,7 @@ class SmartMOT:
                     else:
                         message = 'Predicted collision with object: ' + str(collision_id_list[0])
     
-                    cv2.putText(output_image,message,(30,140), cv2.FONT_HERSHEY_PLAIN, 1.5, [255,255,255], 2) # Predicted collision message 
-                
+                    cv2.putText(output_image,message,(30,140), cv2.FONT_HERSHEY_PLAIN, 1.5, [255,255,255], 2) # Predicted collision message   
             else:
                 print("\033[1;33m"+"No object to track"+'\033[0;m')
                 monitors_functions.empty_trackers_list(self)  
@@ -515,15 +512,16 @@ class SmartMOT:
                 if self.collision_flag.data:
                     print("suma B")
                     self.cont += 1
+            
         else: 
             print("\033[1;33m"+"No objects detected"+'\033[0;m')
             monitors_functions.empty_trackers_list(self)
 
             if self.collision_flag.data:
-                print("suma C")
+                # print("suma C")
                 self.cont += 1
-        
-        print("cont: ", self.cont)
+        """
+        # print("cont: ", self.cont)
         if self.cont >= 3:
             self.collision_flag.data = False
             self.nearest_object_in_route = 50000
@@ -537,7 +535,7 @@ class SmartMOT:
         self.avg_fps += fps 
         self.frame_no += 1
         
-        print("SORT time: {}s, fps: {}, avg fps: {}".format(round(self.end-self.start,3), round(fps,3), round(self.avg_fps/self.frame_no,3)))
+        # print("SORT time: {}s, fps: {}, avg fps: {}".format(round(self.end-self.start,3), round(fps,3), round(self.avg_fps/self.frame_no,3)))
 
         message = 'Trackers: ' + str(len(trackers))
         cv2.putText(output_image,message,(30,20), cv2.FONT_HERSHEY_PLAIN, 1.5, [255,255,255], 2)
@@ -551,9 +549,9 @@ class SmartMOT:
         
         # Publish the list of tracked obstacles and predicted collision
         
-        print("Data: ", nearest_distance.data)
-        print("Collision: ", self.collision_flag.data)
-
+        # print("Data: ", nearest_distance.data)
+        # print("Collision: ", self.collision_flag.data)
+        # print("Trackers list: ", len(self.trackers_marker_list.markers))
         self.pub_bev_sort_tracking_markers_list.publish(self.trackers_marker_list) 
         self.pub_collision.publish(self.collision_flag)         
         self.pub_nearest_object_distance.publish(nearest_distance)
@@ -579,12 +577,12 @@ class SmartMOT:
         if(self.display):
             cv2.imshow("SORT tracking", output_image)
             cv2.waitKey(1)
-        """
+        
 
 def main():
     print("Init the node")
 
-    node_name = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_SmartMOT_ros/t4ac_SmartMOT_ros_node/node_name')
+    node_name = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/node_name')
     rospy.init_node(node_name, anonymous=True)
     
     SmartMOT()

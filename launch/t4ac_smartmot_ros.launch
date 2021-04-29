@@ -1,0 +1,27 @@
+<launch>
+    <arg name="t4ac_smartmot_ros_node" value="/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node"/>
+    <arg name="t4ac_sensor_fusion_ros_node" value="/t4ac/perception/detection/sensor_fusion/t4ac_sensor_fusion_ros/t4ac_sensor_fusion_ros_node"/>
+
+    <group ns="$(arg t4ac_smartmot_ros_node)">
+        <param name="display" type="bool" value="false"/> 
+        <param name="trajectory_prediction" type="bool" value="true" />
+        <param name="use_ros" type="bool" value="true" /> <!-- TODO: Delete this parameter. It is redundant. -->
+        <param name="use_grid" type="bool" value="false" />
+        <param name="node_name" type="string" value="t4ac_smartmot_ros_node" />
+
+        <param name="pub_particular_monitorized_areas_marker" type="string" value="$(arg t4ac_smartmot_ros_node)/particular_monitorized_areas_marker"/>
+        <param name="pub_BEV_tracked_obstacles_marker" type="string" value="$(arg t4ac_smartmot_ros_node)/BEV_tracked_obstacles_marker"/>
+        <param name="pub_rectangular_monitorized_area" type="string" value="$(arg t4ac_smartmot_ros_node)/rectangular_monitorized_area"/>
+        <param name="pub_predicted_collision" type="string" value="$(arg t4ac_smartmot_ros_node)/predicted_collision"/>
+        <param name="pub_distance_to_nearest_object_in_route" type="string" value="$(arg t4ac_smartmot_ros_node)/distance_to_nearest_object_in_route"/>
+        
+        <!-- TODO: Improve this -->
+        <param name="sub_BEV_merged_obstacles" type="string" value="$(arg t4ac_sensor_fusion_ros_node)/BEV_merged_obstacles"/>
+        <param name="sub_localization_pose" type="string" value="/t4ac/localization/pose"/>
+        <param name="sub_monitorized_lanes" type="string" value="/t4ac/mapping/monitor/lanes"/>
+    </group>
+    <node pkg="t4ac_smartmot_ros" type="t4ac_smartmot_ros_node.py" name="t4ac_smartmot_ros_node" output="screen"/>
+</launch>
+
+<!-- output="screen" -->
+

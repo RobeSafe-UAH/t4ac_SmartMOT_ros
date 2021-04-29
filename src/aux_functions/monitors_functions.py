@@ -288,7 +288,7 @@ def ego_vehicle_prediction(self, odom_rosmsg):
     vel_kmh = self.abs_vel * 3.6 # m/s to km/h
     vel_angular = odom_rosmsg.twist.twist.angular.z
 
-    print("Ego vehicle velocity: ", vel_kmh)
+    #print("Ego vehicle velocity: ", vel_kmh)
 
     seconds = []
 
@@ -412,14 +412,14 @@ def ego_vehicle_prediction(self, odom_rosmsg):
 # TODO: Use custom topic to public additional information?
 # TODO: Wireframe (using line_strip) to paint the trajectory prediction
 
-def tracker_to_topic_real(self,tracker,type_object,color,j=None):
+def tracker_to_topic(self,tracker,type_object,color,j=None):
     """
     Fill the obstacle features using real world metrics. Tracker presents a predicted state vector 
     (x,y,w,l,theta) in pixels, in addition to its ID. The x,y,w,l must be trasformed into meters.
     """
     tracked_obstacle = visualization_msgs.msg.Marker()
 
-    tracked_obstacle.header.frame_id = "/map"
+    tracked_obstacle.header.frame_id = self.map_frame
     tracked_obstacle.header.stamp = rospy.Time.now()
     tracked_obstacle.ns = "tracked_obstacles"
     tracked_obstacle.action = tracked_obstacle.ADD
@@ -476,78 +476,11 @@ def tracker_to_topic_real(self,tracker,type_object,color,j=None):
     else:
         return
 
-def tracker_to_topic(self,tracker,type_object,color,j=None):
-    """
-    Fill the obstacle features using real world metrics. Tracker presents a predicted state vector 
-    (x,y,w,l,theta) in pixels, in addition to its ID. The x,y,w,l must be trasformed into meters.
-    """
-    tracked_obstacle = visualization_msgs.msg.Marker()
-    
-    tracked_obstacle.header.frame_id = "/ego_vehicle/lidar/lidar1"
-    tracked_obstacle.header.stamp = rospy.Time.now()
-    tracked_obstacle.ns = "tracked_obstacles"
-    tracked_obstacle.action = tracked_obstacle.ADD
-
-    if type_object == "Pedestrian": 
-        tracked_obstacle.type = tracked_obstacle.CYLINDER
-    else:
-        tracked_obstacle.type = tracked_obstacle.CUBE
-        
-    tracked_obstacle.id = tracker[5].astype(int)
-
-    aux_points = np.array([[tracker[0]], [tracker[1]], [0.0], [1.0]]) # Tracker centroid in pixels
-    aux_centroid = np.dot(self.tf_bevtl2bevcenter_px,aux_points)
-    aux_centroid = np.dot(self.tf_lidar2bev,aux_centroid)
-
-    real_world_x,real_world_y,real_world_w,real_world_l = geometric_functions.compute_corners(tracker,self.shapes,aux_centroid)
-
-    real_world_x = real_world_x[0]
-    real_world_y = real_world_y[0]
-    real_world_h = 1.7 # TODO: 3D Object Detector information?
-    real_world_z = -1.7 # TODO: 3D Object Detector information?
-    
-    tracked_obstacle.pose.position.x = real_world_x   
-    tracked_obstacle.pose.position.y = real_world_y
-    tracked_obstacle.pose.position.z = real_world_z
-    
-    tracked_obstacle.scale.x = 0.7
-    tracked_obstacle.scale.y = 0.7
-    tracked_obstacle.scale.z = 1.5
-    
-    quaternion = tf.transformations.quaternion_from_euler(0,0,-tracker[4]) # The orientation is exactly the opposite since
-    # we are going to publish this object in ROS (LiDAR frame) but we have tracked it using a KF/HA based on BEV camera perspective
-    
-    tracked_obstacle.pose.orientation.x = quaternion[0]
-    tracked_obstacle.pose.orientation.y = quaternion[1]
-    tracked_obstacle.pose.orientation.z = quaternion[2]
-    tracked_obstacle.pose.orientation.w = quaternion[3]
-    
-    if type_object == "trajectory_prediction":
-        tracked_obstacle.id = tracker[5].astype(int)*100 + j
-        tracked_obstacle.color.a = 0.2
- 
-    else:
-        tracked_obstacle.color.a = 1.0
-        
-    tracked_obstacle.color.r = color[2]
-    tracked_obstacle.color.g = color[1]
-    tracked_obstacle.color.b = color[0]
-
-    tracked_obstacle.lifetime = rospy.Duration(1.0) # 1 second
-
-    self.trackers_marker_list.markers.append(tracked_obstacle)
-    
-    if type_object != "trajectory_prediction":
-        ret = [real_world_h,real_world_w,real_world_l,real_world_x,real_world_y,real_world_z,tracker[5].astype(int)]
-        return ret
-    else:
-        return
-
 def empty_trackers_list(self):
     tracker = visualization_msgs.msg.Marker()
                     
     tracker.header.stamp = rospy.Time.now()
-    tracker.header.frame_id = "/ego_vehicle/lidar/lidar1"
+    tracker.header.frame_id = self.lidar_frame
     tracker.ns = "tracked_obstacles"
     tracker.type = 3
     
