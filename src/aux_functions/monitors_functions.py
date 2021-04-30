@@ -45,7 +45,8 @@ from aux_functions import sort_functions
 
 # Global variables
 
-monitorized_area_gap = 1.8
+# TODO: Estimate this parameter around 1.8 m
+monitorized_area_gap = 0
 
 # Inside Lane functions #
 
@@ -196,15 +197,14 @@ def inside_lane(lane, point,type_object):
         in_polygon = inside_polygon(point, polygon)
         in_road = inside_polygon(point, road)
 
-        """
-        print("Is inside polygon: ", in_polygon)
-        print("Is inside road: ", in_road)
-        print("Nearest distance: ", nearest_distance)
-        print("Point: ", point.x, point.y)
-        for pt in polygon:
-            print("x y: ", pt.x, pt.y)
-        """
-        
+       
+        # print("Is inside polygon: ", in_polygon)
+        # print("Is inside road: ", in_road)
+        # print("Nearest distance: ", nearest_distance)
+        # print("Point: ", point.x, point.y)
+        # for pt in polygon:
+        #     print("x y: ", pt.x, pt.y)
+      
         return in_polygon, in_road, polygon, nearest_distance
     else:
         return False, False, [], -1
@@ -375,9 +375,9 @@ def ego_vehicle_prediction(self, odom_rosmsg):
         forecasted_marker.id = i
         forecasted_marker.type = visualization_msgs.msg.Marker.LINE_STRIP
 
-        forecasted_marker.color.r = 1.0
+        forecasted_marker.color.r = 0.0
         forecasted_marker.color.g = 0.0
-        forecasted_marker.color.b = 0.0
+        forecasted_marker.color.b = 1.0
         forecasted_marker.color.a = 1.0
 
         forecasted_marker.scale.x = 0.25

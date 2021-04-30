@@ -512,7 +512,7 @@ def convert_x_to_bbox(x,score=None):
     else:
         return np.array([x[0],x[1],w,h,theta,score]).reshape((1,6))
 
-def bbox_to_xywh_cls_conf(self,detections_rosmsg):
+def bbox_to_xywh_cls_conf(self,detections_rosmsg,img):
     """
     """
 
@@ -559,6 +559,29 @@ def bbox_to_xywh_cls_conf(self,detections_rosmsg):
             aux_array[0,7:] = bbox_object.x, bbox_object.y
 
             current_pos = store_global_coordinates(self.tf_map2lidar,aux_array)
+
+            # Paint relevant detections (Only visualization)
+    
+            # if(self.display):  
+            #     x_px = bbox_object.x*self.scale_factor[0]
+            #     y_px = bbox_object.y*self.scale_factor[1]
+            #     w_px = w*self.scale_factor[0]
+            #     l_px = l*self.scale_factor[1]
+            #     c = [x_px, y_px, w_px, l_px, theta]
+            #     corners = geometric_functions.compute_corners(c)
+            #     contour = np.array([])
+
+            #     for i in range(4):
+            #         cx = int(round(corners[i][0]))
+            #         cy = int(round(corners[i][1]))
+            #         if i==0:
+            #             contour = np.array([cx,cy]).reshape(1,2)
+            #         else:
+            #             c = np.array([cx,cy]).reshape(1,2)
+            #             contour = np.concatenate((contour,c))
+            #     centroid = int(round(x_px)),int(round(y_px))
+            #     my_thickness = 2
+            #     geometric_functions.draw_rotated(contour,centroid,img,my_thickness)
      
             if k == 0:
                 bboxes = np.array([[current_pos[0,0],current_pos[1,0], 

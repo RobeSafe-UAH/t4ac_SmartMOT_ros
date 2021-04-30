@@ -1,7 +1,10 @@
 <launch>
+    <arg name="lidar_camera_fusion" default="true"/>
+
     <arg name="t4ac_smartmot_ros_node" value="/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node"/>
     <arg name="t4ac_sensor_fusion_ros_node" value="/t4ac/perception/detection/sensor_fusion/t4ac_sensor_fusion_ros/t4ac_sensor_fusion_ros_node"/>
-
+    <arg name="t4ac_BEV_from_2D_detector_ros_node" value="/t4ac/perception/detection/sensor_fusion/t4ac_sensor_fusion_ros/t4ac_BEV_from_2D_detector_ros_node"/>
+    
     <group ns="$(arg t4ac_smartmot_ros_node)">
         <param name="display" type="bool" value="false"/> 
         <param name="trajectory_prediction" type="bool" value="true" />
@@ -16,7 +19,14 @@
         <param name="pub_distance_to_nearest_object_in_route" type="string" value="$(arg t4ac_smartmot_ros_node)/distance_to_nearest_object_in_route"/>
         
         <!-- TODO: Improve this -->
-        <param name="sub_BEV_merged_obstacles" type="string" value="$(arg t4ac_sensor_fusion_ros_node)/BEV_merged_obstacles"/>
+        
+        <group if="$(eval lidar_camera_fusion == true)">
+            <param name="sub_BEV_merged_obstacles" type="string" value="$(arg t4ac_sensor_fusion_ros_node)/BEV_merged_obstacles"/>
+        </group>
+        <group if="$(eval lidar_camera_fusion == false)">
+            <param name="sub_BEV_merged_obstacles" type="string" value="$(arg t4ac_BEV_from_2D_detector_ros_node)/BEV_image_obstacles"/>
+        </group>
+        
         <param name="sub_localization_pose" type="string" value="/t4ac/localization/pose"/>
         <param name="sub_monitorized_lanes" type="string" value="/t4ac/mapping/monitor/lanes"/>
     </group>
