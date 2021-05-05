@@ -125,30 +125,38 @@ class SmartMOT:
 
         # Arguments from ROS params
 
-        self.display = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/display')
-        self.trajectory_prediction = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/trajectory_prediction')
-        self.ros = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/use_ros')
-        self.grid = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/use_grid')
+        root = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/root')
+
+        self.display = rospy.get_param(os.path.join(root,"display"))
+        self.trajectory_prediction = rospy.get_param(os.path.join(root,"trajectory_prediction"))
+        self.ros = rospy.get_param(os.path.join(root,"use_ros"))
+        self.grid = rospy.get_param(os.path.join(root,"use_grid"))
         self.rc_max = rospy.get_param('/t4ac/control/classic/t4ac_controller/t4ac_controller_node/rc_max')
         self.map_frame = rospy.get_param('t4ac/frames/map')
         self.lidar_frame = rospy.get_param('t4ac/frames/laser')
         
         # ROS publishers
 
-        self.pub_monitorized_area = rospy.Publisher("/t4ac/perception/detection/monitorized_area_marker", visualization_msgs.msg.Marker, queue_size = 20)
-        self.pub_bev_sort_tracking_markers_list = rospy.Publisher('/t4ac/perception/tracking/obstacles_markers', visualization_msgs.msg.MarkerArray, queue_size = 20)
-        self.pub_particular_monitorized_area_markers_list = rospy.Publisher('/t4ac/perception/monitors/individual_monitorized_area', visualization_msgs.msg.MarkerArray, queue_size = 20)
-        self.pub_ego_vehicle_forecasted_trajectory_markers_list = rospy.Publisher('/t4ac/perception/prediction/ego_vehicle_forecasted_trajectory', visualization_msgs.msg.MarkerArray, queue_size = 20)
-        self.pub_collision = rospy.Publisher('/t4ac/perception/monitors/predicted_collision', std_msgs.msg.Bool, queue_size = 20)
-        self.pub_nearest_object_distance = rospy.Publisher('/t4ac/perception/monitors/nearest_object_distance', std_msgs.msg.Float64, queue_size = 20)
+        monitorized_area_topic = rospy.get_param(os.path.join(root,"pub_rectangular_monitorized_area_marker"))
+        self.pub_monitorized_area = rospy.Publisher(monitorized_area_topic, visualization_msgs.msg.Marker, queue_size = 20)
+        particular_monitorized_area_markers_list_topic = rospy.get_param(os.path.join(root,"pub_particular_monitorized_areas_marker"))
+        self.pub_particular_monitorized_area_markers_list = rospy.Publisher(particular_monitorized_area_markers_list_topic, visualization_msgs.msg.MarkerArray, queue_size = 20)
+        bev_sort_tracking_markers_list_topic = rospy.get_param(os.path.join(root,"pub_BEV_tracked_obstacles_marker"))
+        self.pub_bev_sort_tracking_markers_list = rospy.Publisher(bev_sort_tracking_markers_list_topic, visualization_msgs.msg.MarkerArray, queue_size = 20)
+        ego_vehicle_forecasted_trajectory_markers_list = rospy.get_param(os.path.join(root,"pub_ego_vehicle_forecasted_trajectory_marker"))
+        self.pub_ego_vehicle_forecasted_trajectory_markers_list = rospy.Publisher(ego_vehicle_forecasted_trajectory_markers_list, visualization_msgs.msg.MarkerArray, queue_size = 20)
+        predicted_collision_topic = rospy.get_param(os.path.join(root,"pub_predicted_collision"))
+        self.pub_collision = rospy.Publisher(predicted_collision_topic, std_msgs.msg.Bool, queue_size = 20)
+        nearest_object_distance_topic = rospy.get_param(os.path.join(root,"pub_nearest_object_distance"))
+        self.pub_nearest_object_distance = rospy.Publisher(nearest_object_distance_topic, std_msgs.msg.Float64, queue_size = 20)
 
         # ROS subscribers
 
         if not self.filter_hdmap:
             self.sub_road_curvature = rospy.Subscriber("/control/rc", std_msgs.msg.Float64, self.road_curvature_callback)
-        self.detections_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/sub_BEV_merged_obstacles')
-        self.odom_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/sub_localization_pose')
-        self.monitorized_lanes_topic = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/sub_monitorized_lanes')
+        self.detections_topic = rospy.get_param(os.path.join(root,"sub_BEV_merged_obstacles"))
+        self.odom_topic = rospy.get_param(os.path.join(root,"sub_localization_pose"))
+        self.monitorized_lanes_topic = rospy.get_param(os.path.join(root,"sub_monitorized_lanes"))
 
         self.detections_subscriber = Subscriber(self.detections_topic, BEV_detections_list)
         self.odom_subscriber = Subscriber(self.odom_topic, nav_msgs.msg.Odometry)
@@ -211,11 +219,11 @@ class SmartMOT:
     def SmartMOT_callback(self, detections_rosmsg, odom_rosmsg, monitorized_lanes_rosmsg):
         """
         """
-        # print(">>>>>>>>>>>>>>>>>>")
-        # print("Detections: ", detections_rosmsg.header.stamp.to_sec())
-        # print("Odom: ", odom_rosmsg.header.stamp.to_sec())
-        # print("Lanes: ", monitorized_lanes_rosmsg.header.stamp.to_sec())
-
+        print(">>>>>>>>>>>>>>>>>>")
+        print("Detections: ", detections_rosmsg.header.stamp.to_sec())
+        print("Odom: ", odom_rosmsg.header.stamp.to_sec())
+        print("Lanes: ", monitorized_lanes_rosmsg.header.stamp.to_sec())
+        """
         try:                                                         # Target        # Pose
             (translation,quaternion) = self.listener.lookupTransform(self.map_frame, self.lidar_frame, rospy.Time(0)) 
             # rospy.Time(0) get us the latest available transform
@@ -395,7 +403,7 @@ class SmartMOT:
         # print("Collision: ", self.collision_flag.data)
         self.pub_nearest_object_distance.publish(nearest_distance)
         self.pub_collision.publish(self.collision_flag)
-
+        """
         """
         ## Multi-Object Tracking
 
@@ -661,7 +669,8 @@ class SmartMOT:
 def main():
     print("Init the node")
 
-    node_name = rospy.get_param('/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/node_name')
+    node_name = rospy.get_param("/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node/node_name")
+    print("Node_name: ", node_name)
     rospy.init_node(node_name, anonymous=True)
     
     SmartMOT()

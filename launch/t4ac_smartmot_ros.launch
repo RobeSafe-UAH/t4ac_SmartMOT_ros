@@ -10,13 +10,15 @@
         <param name="trajectory_prediction" type="bool" value="true" />
         <param name="use_ros" type="bool" value="true" /> <!-- TODO: Delete this parameter. It is redundant. -->
         <param name="use_grid" type="bool" value="false" />
+        <param name="root" type="string" value="/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node" />
         <param name="node_name" type="string" value="t4ac_smartmot_ros_node" />
 
+        <param name="pub_rectangular_monitorized_area_marker" type="string" value="$(arg t4ac_smartmot_ros_node)/rectangular_monitorized_area_marker"/>
         <param name="pub_particular_monitorized_areas_marker" type="string" value="$(arg t4ac_smartmot_ros_node)/particular_monitorized_areas_marker"/>
         <param name="pub_BEV_tracked_obstacles_marker" type="string" value="$(arg t4ac_smartmot_ros_node)/BEV_tracked_obstacles_marker"/>
-        <param name="pub_rectangular_monitorized_area" type="string" value="$(arg t4ac_smartmot_ros_node)/rectangular_monitorized_area"/>
+        <param name="pub_ego_vehicle_forecasted_trajectory_marker" type="string" value="$(arg t4ac_smartmot_ros_node)/ego_vehicle_forecasted_trajectory_marker"/>
         <param name="pub_predicted_collision" type="string" value="$(arg t4ac_smartmot_ros_node)/predicted_collision"/>
-        <param name="pub_distance_to_nearest_object_in_route" type="string" value="$(arg t4ac_smartmot_ros_node)/distance_to_nearest_object_in_route"/>
+        <param name="pub_nearest_object_distance" type="string" value="$(arg t4ac_smartmot_ros_node)/nearest_object_distance"/>
         
         <!-- TODO: Improve this -->
         
