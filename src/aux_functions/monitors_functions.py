@@ -213,7 +213,6 @@ def inside_lane(lane, point,type_object):
 
 # Monitors functions (ACC, pedestrian crossing, stop, give way) 
 
-   
 def calculate_distance_to_nearest_object_inside_route(monitorized_lanes,obstacle_global_position):
     """
     """
@@ -276,6 +275,92 @@ def predict_collision(predicted_ego_vehicle,predicted_obstacle,static=None,emerg
             if o > 0.0:  
                 return True 
         return False  
+
+def calculate_index_last_waypoint(lane, predicted_distance):
+    """
+    """
+
+    accumulated_distance = 0
+
+    for i in range(len(lane.left.way)-1): 
+        cn = Node() # Current node
+        cn.x = lane.left.way[i].x
+        cn.y = -lane.left.way[i].y
+
+        nn = Node() # Next node
+        nn.x = lane.left.way[i+1].x
+        nn.y = -lane.left.way[i+1].y
+
+        diff = math.sqrt(pow(cn.x-nn.x,2)+pow(cn.y-nn.y,2))
+        accumulated_distance += diff
+
+        if (accumulated_distance > predicted_distance):
+            return i+1
+    return len(lane.left.way)-1
+
+def new_ego_vehicle_prediction(self, odom_rosmsg, current_lane):
+    """
+    """
+
+    # Calculate vel in km/h and braking distance according to DGT Spain traffic data
+
+    self.abs_vel = math.sqrt(pow(odom_rosmsg.twist.twist.linear.x,2)+pow(odom_rosmsg.twist.twist.linear.y,2))
+    vel_kmh = self.abs_vel * 3.6 # m/s to km/h
+
+    seconds = []
+    index = 0
+
+    if abs(self.abs_vel) != 0.0: # The vehicle is moving   
+        pf = PolynomialFeatures(degree = 2)
+        self.ego_braking_distance = self.velocity_braking_distance_model.predict(pf.fit_transform([[vel_kmh]]))
+
+        seconds_required = self.ego_braking_distance/self.abs_vel
+        
+        if seconds_required < self.seconds_ahead:
+            seconds_required = self.seconds_ahead # Predict the trajectory at least x seconds ahead
+            self.ego_braking_distance = seconds_required*self.abs_vel
+
+        for i in range(self.n):
+            seconds.append(float(seconds_required)/float(self.n)*(i+1))
+    else:
+        self.ego_braking_distance = 0
+        seconds = np.zeros((4,1))
+
+    index = calculate_index_last_waypoint(current_lane, self.ego_braking_distance)
+
+    points = visualization_msgs.msg.Marker()
+    line_strip = visualization_msgs.msg.Marker()
+    points.header.frame_id = line_strip.header.frame_id = "/map"
+    points.header.stamp = line_strip.header.stamp = odom_rosmsg.header.stamp
+    points.ns = line_strip.ns = "ego_vehicle_forecasted_trajectory"
+    points.action = line_strip.action = points.ADD
+    points.lifetime = line_strip.lifetime = rospy.Duration.from_sec(0.4)
+    points.pose.orientation.w = line_strip.pose.orientation.w = 1.0
+
+    points.id = 0
+    line_strip.id = 1
+    points.type = visualization_msgs.msg.Marker.POINTS
+    line_strip.type = visualization_msgs.msg.Marker.LINE_STRIP
+
+    points.scale.x = 0.25
+    points.scale.y = 0.25
+    line_strip.scale.x = 0.1
+
+    points.color.a = 1.0
+    line_strip.color.a = 1.0 # Both are black
+
+    for i in range(1,index+1):
+        point = geometry_msgs.msg.Point()
+        point.x = (current_lane.left.way[i].x+current_lane.right.way[i].x)/2
+        point.y = (-current_lane.left.way[i].y-current_lane.right.way[i].y)/2
+        point.z = 0.3
+
+        points.points.append(point)
+        line_strip.points.append(point)
+
+    self.ego_trajectory_forecasted_marker_list.markers.append(points)
+    self.ego_trajectory_forecasted_marker_list.markers.append(line_strip)
+    self.pub_ego_vehicle_forecasted_trajectory_markers_list.publish(self.ego_trajectory_forecasted_marker_list)
 
 def ego_vehicle_prediction(self, odom_rosmsg):
     """
@@ -384,7 +469,7 @@ def ego_vehicle_prediction(self, odom_rosmsg):
         forecasted_marker.pose.orientation.w = 1.0
 
         order = [0,1,3,2]
-
+ 
         for j in order:
             point = geometry_msgs.msg.Point()
 
@@ -401,7 +486,6 @@ def ego_vehicle_prediction(self, odom_rosmsg):
         forecasted_marker.points.append(point) # To close the polygon
 
         self.ego_trajectory_forecasted_marker_list.markers.append(forecasted_marker)
-
     self.pub_ego_vehicle_forecasted_trajectory_markers_list.publish(self.ego_trajectory_forecasted_marker_list)
 
 # End Prediction functions #
