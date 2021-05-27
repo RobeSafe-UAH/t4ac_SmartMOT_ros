@@ -17,16 +17,18 @@ Note that
 
 """
 
+import cv2
 import math
 import numpy as np
-import cv2
 from shapely.geometry import Polygon
+import time
 
 # ROS imports
 
+import geometry_msgs.msg
 import rospy
-import tf 
 import nav_msgs.msg
+import tf 
 import visualization_msgs.msg
 
 from t4ac_msgs.msg import Node
@@ -43,7 +45,8 @@ from aux_functions import sort_functions
 
 # Global variables
 
-monitorized_area_gap = 1.8
+# TODO: Estimate this parameter around 1.8 m
+monitorized_area_gap = 0
 
 # Inside Lane functions #
 
@@ -194,16 +197,14 @@ def inside_lane(lane, point,type_object):
         in_polygon = inside_polygon(point, polygon)
         in_road = inside_polygon(point, road)
 
-        
-        #print("Is inside polygon: ", in_polygon)
-        #print("Is inside road: ", in_road)
-        """
-        print("Nearest distance: ", nearest_distance)
-        print("Point: ", point.x, point.y)
-        for pt in polygon:
-            print("x y: ", pt.x, pt.y)
-        """
-        
+       
+        # print("Is inside polygon: ", in_polygon)
+        # print("Is inside road: ", in_road)
+        # print("Nearest distance: ", nearest_distance)
+        # print("Point: ", point.x, point.y)
+        # for pt in polygon:
+        #     print("x y: ", pt.x, pt.y)
+      
         return in_polygon, in_road, polygon, nearest_distance
     else:
         return False, False, [], -1
@@ -212,7 +213,6 @@ def inside_lane(lane, point,type_object):
 
 # Monitors functions (ACC, pedestrian crossing, stop, give way) 
 
-   
 def calculate_distance_to_nearest_object_inside_route(monitorized_lanes,obstacle_global_position):
     """
     """
@@ -274,113 +274,219 @@ def predict_collision(predicted_ego_vehicle,predicted_obstacle,static=None,emerg
             o = geometric_functions.iou(ego[0],obs)
             if o > 0.0:  
                 return True 
-        return False   
+        return False  
 
-def ego_vehicle_prediction(self, odom_rosmsg, img):
-    """ 
-    Predict the ego-vehicle trajectory n seconds ahead (in function of its velocity)
-    """ 
-    LiDAR_centroid_ego = np.array([[self.ego_vehicle_x], [self.ego_vehicle_y], [0.0], [1.0]]) # real-world
-    BEV_centroid_ego = np.dot(self.tf_bevtl2bevcenter_m,LiDAR_centroid_ego) # real-world
-    BEV_image_centroid_ego = BEV_centroid_ego[:2] # image
-    
-    BEV_image_centroid_ego[0] = BEV_image_centroid_ego[0]*self.scale_factor[1]
-    BEV_image_centroid_ego[1] = BEV_image_centroid_ego[1]*self.scale_factor[0]
+def calculate_index_last_waypoint(lane, predicted_distance):
+    """
+    """
 
-    # reference_ego = (int(round(BEV_image_centroid_ego[0].item())), int(round(BEV_image_centroid_ego[1].item())))
-    # .item() is used to extract the value in float type, not numpy type
-    reference_ego = (int(round(BEV_image_centroid_ego[0])), int(round(BEV_image_centroid_ego[1])))
-    cv2.circle(img, reference_ego, radius=4, color=(0,0,255), thickness=4)
-    
+    accumulated_distance = 0
+
+    for i in range(len(lane.left.way)-1): 
+        cn = Node() # Current node
+        cn.x = lane.left.way[i].x
+        cn.y = -lane.left.way[i].y
+
+        nn = Node() # Next node
+        nn.x = lane.left.way[i+1].x
+        nn.y = -lane.left.way[i+1].y
+
+        diff = math.sqrt(pow(cn.x-nn.x,2)+pow(cn.y-nn.y,2))
+        accumulated_distance += diff
+
+        if (accumulated_distance > predicted_distance):
+            return i+1
+    return len(lane.left.way)-1
+
+def new_ego_vehicle_prediction(self, odom_rosmsg, current_lane):
+    """
+    """
+
+    # Calculate vel in km/h and braking distance according to DGT Spain traffic data
+
     self.abs_vel = math.sqrt(pow(odom_rosmsg.twist.twist.linear.x,2)+pow(odom_rosmsg.twist.twist.linear.y,2))
+    vel_kmh = self.abs_vel * 3.6 # m/s to km/h
 
-    self.ego_vel_px = -abs(self.abs_vel)*self.scale_factor[0] # m/s to pixels/s
-    self.ego_vz_px = -odom_rosmsg.twist.twist.angular.z # No conversion is required (rad/s) # It is the opposite in OpenCV!
-    
-    message = 'Ego-vehicle velocity (km/h): ' + str(round(self.abs_vel*3.6,2))
-    cv2.putText(img,message,(30,110), cv2.FONT_HERSHEY_PLAIN, 1.5, [255,255,255], 2)
-    
-    ego_dimensions_m = np.array([[4.4],  # Length
-                                 [1.8]]) # Width 
-    ego_length_px = ego_dimensions_m[0]*self.scale_factor[0]
-    ego_width_px = ego_dimensions_m[1]*self.scale_factor[1]
-    
-    s = ego_length_px*ego_width_px # Area of the bounding box
-    r = ego_width_px/ego_length_px # Aspect ratio
+    seconds = []
+    index = 0
 
-    # Predict ego-vehicle trajectory
-
-    self.ego_predicted = []
-    vel_km_h = self.abs_vel*3.6 # m/s to km/h
-
-    print("Ego vehicle vel: ", vel_km_h)
     if abs(self.abs_vel) != 0.0: # The vehicle is moving   
         pf = PolynomialFeatures(degree = 2)
-        self.ego_braking_distance = self.velocity_braking_distance_model.predict(pf.fit_transform([[vel_km_h]]))
-        
+        self.ego_braking_distance = self.velocity_braking_distance_model.predict(pf.fit_transform([[vel_kmh]]))
+
         seconds_required = self.ego_braking_distance/self.abs_vel
+        
+        if seconds_required < self.seconds_ahead:
+            seconds_required = self.seconds_ahead # Predict the trajectory at least x seconds ahead
+            self.ego_braking_distance = seconds_required*self.abs_vel
 
-        if seconds_required < 3:
-            seconds_required = 3 # Predict the trajectory at least 3 seconds ahead
-
-        for i in range(self.n.shape[0]):
-            self.n[i] = float(seconds_required)/float(self.n.shape[0])*(i+1)
+        for i in range(self.n):
+            seconds.append(float(seconds_required)/float(self.n)*(i+1))
     else:
         self.ego_braking_distance = 0
-        self.n = np.zeros((4,1))
+        seconds = np.zeros((4,1))
+
+    index = calculate_index_last_waypoint(current_lane, self.ego_braking_distance)
+
+    points = visualization_msgs.msg.Marker()
+    line_strip = visualization_msgs.msg.Marker()
+    points.header.frame_id = line_strip.header.frame_id = "/map"
+    points.header.stamp = line_strip.header.stamp = odom_rosmsg.header.stamp
+    points.ns = line_strip.ns = "ego_vehicle_forecasted_trajectory"
+    points.action = line_strip.action = points.ADD
+    points.lifetime = line_strip.lifetime = rospy.Duration.from_sec(0.4)
+    points.pose.orientation.w = line_strip.pose.orientation.w = 1.0
+
+    points.id = 0
+    line_strip.id = 1
+    points.type = visualization_msgs.msg.Marker.POINTS
+    line_strip.type = visualization_msgs.msg.Marker.LINE_STRIP
+
+    points.scale.x = 0.25
+    points.scale.y = 0.25
+    line_strip.scale.x = 0.1
+
+    points.color.a = 1.0
+    line_strip.color.a = 1.0 # Both are black
+
+    for i in range(1,index+1):
+        point = geometry_msgs.msg.Point()
+        point.x = (current_lane.left.way[i].x+current_lane.right.way[i].x)/2
+        point.y = (-current_lane.left.way[i].y-current_lane.right.way[i].y)/2
+        point.z = 0.3
+
+        points.points.append(point)
+        line_strip.points.append(point)
+
+    self.ego_trajectory_forecasted_marker_list.markers.append(points)
+    self.ego_trajectory_forecasted_marker_list.markers.append(line_strip)
+    self.pub_ego_vehicle_forecasted_trajectory_markers_list.publish(self.ego_trajectory_forecasted_marker_list)
+
+def ego_vehicle_prediction(self, odom_rosmsg):
+    """
+    """
+
+    # Calculate vel in km/h and braking distance according to DGT Spain traffic data
+
+    self.abs_vel = math.sqrt(pow(odom_rosmsg.twist.twist.linear.x,2)+pow(odom_rosmsg.twist.twist.linear.y,2))
+    vel_kmh = self.abs_vel * 3.6 # m/s to km/h
+    vel_angular = odom_rosmsg.twist.twist.angular.z
+
+    #print("Ego vehicle velocity: ", vel_kmh)
+
+    seconds = []
+
+    if abs(self.abs_vel) != 0.0: # The vehicle is moving   
+        pf = PolynomialFeatures(degree = 2)
+        self.ego_braking_distance = self.velocity_braking_distance_model.predict(pf.fit_transform([[vel_kmh]]))
+
+        seconds_required = self.ego_braking_distance/self.abs_vel
+        
+        if seconds_required < self.seconds_ahead:
+            seconds_required = self.seconds_ahead # Predict the trajectory at least x seconds ahead
+
+        for i in range(self.n):
+            seconds.append(float(seconds_required)/float(self.n)*(i+1))
+    else:
+        self.ego_braking_distance = 0
+        seconds = np.zeros((4,1))
+
+    # Predict ego-vehicle trajectory
+    # TODO: Incorporate an embedding of n previous samples
+
+    ## Calculate position (Global coordinates, w.r.t. /map frame)
+
+    ego_global_x = odom_rosmsg.pose.pose.position.x
+    ego_global_y = -odom_rosmsg.pose.pose.position.y
     
-    # Predict
-    
+    ## Calculate orientation 
+
     previous_angle_aux = 0
     
+    # Given:    Right Hand: {w,x,y,z} # Real-world or standard systems
+    # Convert:  Left Hand: {-w,z,y,x} # CARLA
+
     quaternion = np.zeros((4))
     quaternion[0] = odom_rosmsg.pose.pose.orientation.x
     quaternion[1] = odom_rosmsg.pose.pose.orientation.y
     quaternion[2] = odom_rosmsg.pose.pose.orientation.z
-    quaternion[3] = odom_rosmsg.pose.pose.orientation.w
+    quaternion[3] = -odom_rosmsg.pose.pose.orientation.w
 
     euler = tf.transformations.euler_from_quaternion(quaternion)
     self.current_yaw = euler[2]
 
-    for i in range(self.n.shape[0]):  
-        if i>0:
-            previous_angle_aux = self.ego_trajectory_prediction_bb[4,i-1]
-        else:               
-            if not self.initial_angle:
-                self.previous_angle = math.pi/2
-                self.initial_angle = True
-            else:
-                diff = self.current_yaw - self.pre_yaw
-                self.ego_orientation_cumulative_diff += diff
-                self.previous_angle = self.previous_angle #- diff
-                previous_angle_aux = self.previous_angle
-                
-            self.pre_yaw = self.current_yaw
+    ## Calculate forecasted bounding boxes 
 
-        self.ego_trajectory_prediction_bb[0,i] = BEV_image_centroid_ego[0] + self.ego_vel_px*self.n[i]*math.cos(previous_angle_aux) # x centroid
-        self.ego_trajectory_prediction_bb[1,i] = BEV_image_centroid_ego[1] + self.ego_vel_px*self.n[i]*math.sin(previous_angle_aux) # y centroid
-        self.ego_trajectory_prediction_bb[2,i] = s # s (scale) is assumed to be constant for the ego-vehicle
-        self.ego_trajectory_prediction_bb[3,i] = r # r (aspect ratio) is assumed to be constant for the ego-vehicle
-        self.ego_trajectory_prediction_bb[4,i] = self.previous_angle +  self.ego_vz_px*self.n[i] # Theta (orientation). 
-        # Note that the ego-vehicle is initially up-right according to the image
-        
-        e = sort_functions.convert_x_to_bbox(self.ego_trajectory_prediction_bb[:,i])
-        self.ego_predicted.append(e)
+    ego_forecasted_bboxes = []
 
-    self.angle_bb = self.ego_orientation_cumulative_diff + math.pi/2
+    s = float(self.ego_dimensions[0]) * self.ego_dimensions[1] # Area of the bounding box
+    r = float(self.ego_dimensions[1]) / self.ego_dimensions[0] # Aspect ratio
 
-    # Visualize
+    forecasted_x = np.zeros((self.n,5)) # n times (x,y,s,r,theta), x means ego-vehicle state
 
-    if self.display:
-        for j in range(self.n.shape[0]):           
-            e = self.ego_predicted[j][0]
-            e1c, e2c, e3c, e4c = geometric_functions.compute_corners(e)
-  
-            contour = np.array([[e1c[0],e1c[1]],[e2c[0],e2c[1]],[e3c[0],e3c[1]],[e4c[0],e4c[1]]])
-            centroid = (e[0].astype(int),e[1].astype(int)) # tracker centroid
-            color = (0,0,255)
-            my_thickness = 2
-            geometric_functions.draw_rotated(contour,centroid,img,my_thickness,color)
+    for i,second in enumerate(seconds):
+        if i == 0:
+            angle = self.current_yaw
+            diff = self.current_yaw - self.previous_yaw
+            self.previous_yaw = self.current_yaw
+        else:
+            angle = forecasted_x[i-1,4]
+
+        # global x,y centroid, scale and aspect ratio (assumed to be constant) and orientation
+
+        forecasted_x[i,0] = ego_global_x + self.abs_vel*seconds[i]*math.cos(angle)
+        forecasted_x[i,1] = ego_global_y + self.abs_vel*seconds[i]*math.sin(angle)
+        forecasted_x[i,2] = s 
+        forecasted_x[i,3] = r 
+        forecasted_x[i,4] = angle + vel_angular*seconds[i]*math.cos(angle)
+
+        forecasted_bbox = sort_functions.convert_x_to_bbox(forecasted_x[i,:])
+        ego_forecasted_bboxes.append(forecasted_bbox)
+
+    # Visualize forecasted trajectory
+
+    self.ego_trajectory_forecasted_marker_list.markers = []
+
+    for i,forecasted_bbox in enumerate(ego_forecasted_bboxes):
+        corners_3d = geometric_functions.compute_corners_real(forecasted_bbox[0])
+
+        forecasted_marker = visualization_msgs.msg.Marker()
+
+        forecasted_marker.header.frame_id = "/map"
+        forecasted_marker.header.stamp = odom_rosmsg.header.stamp
+        forecasted_marker.ns = "ego_vehicle_forecasted_trajectory"
+        forecasted_marker.action = forecasted_marker.ADD
+        forecasted_marker.lifetime = rospy.Duration.from_sec(1)
+        forecasted_marker.id = i
+        forecasted_marker.type = visualization_msgs.msg.Marker.LINE_STRIP
+
+        forecasted_marker.color.r = 0.0
+        forecasted_marker.color.g = 0.0
+        forecasted_marker.color.b = 1.0
+        forecasted_marker.color.a = 1.0
+
+        forecasted_marker.scale.x = 0.25
+        forecasted_marker.pose.orientation.w = 1.0
+
+        order = [0,1,3,2]
+ 
+        for j in order:
+            point = geometry_msgs.msg.Point()
+
+            point.x = corners_3d[0][j]
+            point.y = -corners_3d[1][j]
+            point.z = 0.2
+
+            forecasted_marker.points.append(point)
+
+        point = geometry_msgs.msg.Point()
+        point.x = corners_3d[0][0]
+        point.y = -corners_3d[1][0]
+
+        forecasted_marker.points.append(point) # To close the polygon
+
+        self.ego_trajectory_forecasted_marker_list.markers.append(forecasted_marker)
+    self.pub_ego_vehicle_forecasted_trajectory_markers_list.publish(self.ego_trajectory_forecasted_marker_list)
 
 # End Prediction functions #
 
@@ -388,14 +494,15 @@ def ego_vehicle_prediction(self, odom_rosmsg, img):
 
 # TODO: Use custom topic to public additional information?
 # TODO: Wireframe (using line_strip) to paint the trajectory prediction
+
 def tracker_to_topic(self,tracker,type_object,color,j=None):
     """
     Fill the obstacle features using real world metrics. Tracker presents a predicted state vector 
     (x,y,w,l,theta) in pixels, in addition to its ID. The x,y,w,l must be trasformed into meters.
     """
     tracked_obstacle = visualization_msgs.msg.Marker()
-    
-    tracked_obstacle.header.frame_id = "/ego_vehicle/lidar/lidar1"
+
+    tracked_obstacle.header.frame_id = self.map_frame
     tracked_obstacle.header.stamp = rospy.Time.now()
     tracked_obstacle.ns = "tracked_obstacles"
     tracked_obstacle.action = tracked_obstacle.ADD
@@ -407,20 +514,17 @@ def tracker_to_topic(self,tracker,type_object,color,j=None):
         
     tracked_obstacle.id = tracker[5].astype(int)
 
-    aux_points = np.array([[tracker[0]], [tracker[1]], [0.0], [1.0]]) # Tracker centroid in pixels
-    aux_centroid = np.dot(self.tf_bevtl2bevcenter_px,aux_points)
-    aux_centroid = np.dot(self.tf_lidar2bev,aux_centroid)
-
-    real_world_x,real_world_y,real_world_w,real_world_l = geometric_functions.compute_corners(tracker,self.shapes,aux_centroid)
-
-    real_world_x = real_world_x[0]
-    real_world_y = real_world_y[0]
-    real_world_h = 1.7 # TODO: 3D Object Detector information?
+    # TODO: Fix this estimation
+    real_world_x = tracker[0]
+    real_world_y = tracker[1]
     real_world_z = -1.7 # TODO: 3D Object Detector information?
+    real_world_w = 1
+    real_world_l = 1
+    real_world_h = 1.7 # TODO: 3D Object Detector information?
     
-    tracked_obstacle.pose.position.x = real_world_x   
+    tracked_obstacle.pose.position.x = real_world_x 
     tracked_obstacle.pose.position.y = real_world_y
-    tracked_obstacle.pose.position.z = real_world_z
+    tracked_obstacle.pose.position.z = 0.0
     
     tracked_obstacle.scale.x = 0.7
     tracked_obstacle.scale.y = 0.7
@@ -459,7 +563,7 @@ def empty_trackers_list(self):
     tracker = visualization_msgs.msg.Marker()
                     
     tracker.header.stamp = rospy.Time.now()
-    tracker.header.frame_id = "/ego_vehicle/lidar/lidar1"
+    tracker.header.frame_id = self.lidar_frame
     tracker.ns = "tracked_obstacles"
     tracker.type = 3
     
