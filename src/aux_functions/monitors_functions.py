@@ -137,7 +137,7 @@ def find_closest_segment(way, point):
     else:
         return -1, -1, -1
 
-def inside_lane(lane, point,type_object):
+def inside_lane(lane, point,type_object=None):
     """
     """
 
@@ -161,7 +161,7 @@ def inside_lane(lane, point,type_object):
         nearest_distance,role = test(dist2segment_left,dist2segment_right)
         lane_width = math.sqrt(pow(n0_right.x-n0_left.x,2)+pow(n0_right.y-n0_left.y,2))
 
-        if type_object == "person" or type_object == "Pedestrian": 
+        if type_object == "person" or type_object == "Pedestrian": # Consider an additional safety zone for pedestrians
             if (dist2segment_left >= lane_width or dist2segment_right >= lane_width): 
                 m = (n0_right.y-n0_left.y) / (n0_right.x-n0_left.x)
                 
@@ -258,10 +258,10 @@ def predict_collision(predicted_ego_vehicle,predicted_obstacle,static=None,emerg
     if not emergency_break:
         for i,ego in enumerate(predicted_ego_vehicle):
             if static == None: # Dynamic obstacles
-                for obs in predicted_obstacle:
-                    o = geometric_functions.iou(ego[0],obs) 
-                    if o > 0.0: # The predicted position of the ego-vehicle and the predicted position of the obstacle overlap  
-                        return int(obs[5]),i # Return the ID of the obstacle and with what ego-vehicle prediction has collided
+                obs = predicted_obstacle[i]
+                o = geometric_functions.iou(ego[0],obs) 
+                if o > 0.0: # Overlap  
+                    return int(obs[5]),i # Obstacle ID and when they collide (seconds ahead)
             else: # Static obstacles
                 obs = predicted_obstacle
                 o = geometric_functions.iou(ego[0],obs)
@@ -417,7 +417,7 @@ def ego_vehicle_prediction(self, odom_rosmsg):
 
     ## Calculate forecasted bounding boxes 
 
-    ego_forecasted_bboxes = []
+    del self.ego_forecasted_bboxesselfego_forecasted_bboxes[:]
 
     s = float(self.ego_dimensions[0]) * self.ego_dimensions[1] # Area of the bounding box
     r = float(self.ego_dimensions[1]) / self.ego_dimensions[0] # Aspect ratio
@@ -441,13 +441,13 @@ def ego_vehicle_prediction(self, odom_rosmsg):
         forecasted_x[i,4] = angle + vel_angular*seconds[i]*math.cos(angle)
 
         forecasted_bbox = sort_functions.convert_x_to_bbox(forecasted_x[i,:])
-        ego_forecasted_bboxes.append(forecasted_bbox)
+        self.ego_forecasted_bboxes.append(forecasted_bbox)
 
     # Visualize forecasted trajectory
 
     self.ego_trajectory_forecasted_marker_list.markers = []
 
-    for i,forecasted_bbox in enumerate(ego_forecasted_bboxes):
+    for i,forecasted_bbox in enumerate(self.ego_forecasted_bboxes):
         corners_3d = geometric_functions.compute_corners_real(forecasted_bbox[0])
 
         forecasted_marker = visualization_msgs.msg.Marker()

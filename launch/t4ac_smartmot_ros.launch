@@ -17,8 +17,13 @@
         <param name="pub_particular_monitorized_areas_marker" type="string" value="$(arg t4ac_smartmot_ros_node)/particular_monitorized_areas_marker"/>
         <param name="pub_BEV_tracked_obstacles_marker" type="string" value="$(arg t4ac_smartmot_ros_node)/BEV_tracked_obstacles_marker"/>
         <param name="pub_ego_vehicle_forecasted_trajectory_marker" type="string" value="$(arg t4ac_smartmot_ros_node)/ego_vehicle_forecasted_trajectory_marker"/>
-        <param name="pub_predicted_collision" type="string" value="$(arg t4ac_smartmot_ros_node)/predicted_collision"/>
-        <param name="pub_nearest_object_distance" type="string" value="$(arg t4ac_smartmot_ros_node)/nearest_object_distance"/>
+        <param name="pub_predicted_collision" type="string" value="$(arg t4ac_smartmot_ros_node)/predicted_collision"/> <!-- Unexpected Pedestrian or Collision -->
+        <param name="pub_nearest_object_distance" type="string" value="$(arg t4ac_smartmot_ros_node)/nearest_object_distance"/> <!-- ACC or Obstacle in the route-->
+        <param name="pub_pedestrian_crossing_occupied" type="string" value="$(arg t4ac_smartmot_ros_node)/pedestrian_crossing_occupied"/> <!-- Pedestrian Crossing -->
+        <param name="pub_merge_occupied" type="string" value="$(arg t4ac_smartmot_ros_node)/merge_occupied"/> <!-- Give Way / Stop -->
+        <param name="pub_front_obstacle" type="string" value="$(arg t4ac_smartmot_ros_node)/front_obstacle"/> <!-- Overtaking -->
+        <param name="pub_left_lane_occupied" type="string" value="$(arg t4ac_smartmot_ros_node)/left_lane_occupied"/> <!-- Overtaking -->
+        <param name="pub_right_lane_occupied" type="string" value="$(arg t4ac_smartmot_ros_node)/right_lane_occupied"/> <!-- Overtaking -->
         
         <!-- TODO: Improve this -->
         
@@ -31,6 +36,7 @@
         
         <param name="sub_localization_pose" type="string" value="/t4ac/localization/pose"/>
         <param name="sub_monitorized_lanes" type="string" value="/t4ac/mapping/monitor/lanes"/>
+        <param name="sub_monitorized_intersections" type="string" value="/t4ac/mapping/monitor/intersections"/>
     </group>
     <node pkg="t4ac_smartmot_ros" type="t4ac_smartmot_ros_node.py" name="t4ac_smartmot_ros_node" output="screen"/>
 </launch>

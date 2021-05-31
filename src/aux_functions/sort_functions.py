@@ -114,9 +114,9 @@ class Sort(object):
 
         matched, unmatched_dets, unmatched_trks = tracking_functions.associate_detections_to_trackers(dets,trks) # Hungarian algorithm
 
-        #print("Matched: ", matched)
-        #print("Unmatched dets: ", unmatched_dets)
-        #print("Unmatched trackers: ", unmatched_trks)
+        print("Matched: ", matched)
+        print("Unmatched dets: ", unmatched_dets)
+        print("Unmatched trackers: ", unmatched_trks)
 
         # 2. Update matched trackers with assigned detections and evaluate its position inside the monitorized lanes
         num_trks = len(self.trackers)
@@ -161,14 +161,6 @@ class Sort(object):
                 #print("kf: ", trk.kf.x, trk.kf.x.shape)
                 trk.current_pos[:2,0] = trk.kf.x[:2,0]
                 trk.current_pos[2,0] = trk.kf.x[4]
-
-
-
-
-
-
-
-
 
                 if self.filter_hdmap:
                 # Check if it is inside the monitorized lanes
@@ -250,8 +242,8 @@ class Sort(object):
                             else:
                                 trk.trajectory_prediction_bb = np.zeros((5,self.n.shape[0])) # If it is static, the prediction buffer must be zero
 
-                        print("IN ROUTE 1: ", trk_in_route)
-                        print("IN ROUTE: ", prediction_in_route)
+                        # print("IN ROUTE 1: ", trk_in_route)
+                        # print("IN ROUTE: ", prediction_in_route)
                         if trk_in_route or prediction_in_route:      
                                    
                             trk.in_route = 1 # In the road, current lane or next lane             
@@ -267,7 +259,7 @@ class Sort(object):
                     print("x y: ", x,y)
                     if (x < geometric_monitorized_area[0] and x > geometric_monitorized_area[1]
                         and y < geometric_monitorized_area[2] and y > geometric_monitorized_area[3]):
-                        print("in route geometric")
+                        # print("in route geometric")
                         trk.in_route = 1
                     else:
                         trk.in_route = 0
@@ -285,8 +277,8 @@ class Sort(object):
         # 3. Create and initialise new trackers for unmatched detections (if these detections are inside a monitorized_lane)
 
         for i in unmatched_dets:
-            print("total dets: ", dets)
-            print("dets: ", dets[i,:])
+            # print("total dets: ", dets)
+            # print("dets: ", dets[i,:])
             aux = store_global_coordinates(tf_map2lidar,dets[i,:].reshape(1,9))
             type_object = types[i]
 
@@ -296,7 +288,8 @@ class Sort(object):
                 detection.y = -aux[1,0] # N.B. In CARLA this coordinate is the opposite
 
                 is_inside, in_route, particular_monitorized_area = evaluate_detection_in_monitorized_lanes(detection,monitorized_lanes, type_object)
-
+                # print("Is inside: ", is_inside)
+                # print("In route: ", in_route)
                 if is_inside: # Create new tracker 
                     trk = tracking_functions.KalmanBoxTracker(dets[i,:],timer_rosmsg)
                     trk.current_pos[:2,0] = aux[:2,0] # x,y global centroid

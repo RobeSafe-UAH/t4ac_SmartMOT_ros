@@ -230,10 +230,18 @@ def iou(bb_1,bb_2):
 
   b1 = Polygon([corners_1[2],corners_1[3],corners_1[1],corners_1[0]]) 
   b2 = Polygon([corners_2[2],corners_2[3],corners_2[1],corners_2[0]])
+  
+  intersection = b1.intersection(b2).area
+  union = b1.union(b2).area
 
-  o = b1.intersection(b2).area / b1.union(b2).area
-  #print("o: ", o)
-  return(o)
+  print("Intersection: ", intersection)
+  print("Union: ", union)
+
+  if union > 0.0:
+    o = intersection / union
+    return(o)
+  else:
+    return 0.0
 
 def draw_basic_grid(gap,output_image,pxstep):
     """
