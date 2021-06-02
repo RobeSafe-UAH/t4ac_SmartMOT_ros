@@ -117,6 +117,14 @@ class SmartMOT:
         self.write_video = False
         self.video_flag = False 
 
+        # Emergency break
+
+        self.cont = 0
+        self.collision_flag = std_msgs.msg.Bool()
+        self.collision_flag.data = False
+        self.nearest_object_in_route = 50000
+        self.geometric_monitorized_area = []
+
         # Pedestrian Crossing
 
         self.closest_crosswalk = []
@@ -129,13 +137,9 @@ class SmartMOT:
         self.merge_occupied = std_msgs.msg.Bool()
         self.merge_occupied.data = False
 
-        # Emergency break
+        # Overtaking 
 
-        self.cont = 0
-        self.collision_flag = std_msgs.msg.Bool()
-        self.collision_flag.data = False
-        self.nearest_object_in_route = 50000
-        self.geometric_monitorized_area = []
+        self.front_obstacle = Obstacle() 
 
         # Arguments from ROS params
 
@@ -145,7 +149,6 @@ class SmartMOT:
         self.trajectory_prediction = rospy.get_param(os.path.join(root,"trajectory_prediction"))
         self.ros = rospy.get_param(os.path.join(root,"use_ros"))
         self.grid = rospy.get_param(os.path.join(root,"use_grid"))
-        self.rc_max = rospy.get_param('/t4ac/control/classic/t4ac_controller/t4ac_controller_node/rc_max')
         self.map_frame = rospy.get_param('t4ac/frames/map')
         self.lidar_frame = rospy.get_param('t4ac/frames/laser')
         
@@ -163,20 +166,25 @@ class SmartMOT:
         ## Monitors
 
         predicted_collision_topic = rospy.get_param(os.path.join(root,"pub_predicted_collision")) # Unexpected Pedestrian or Collision
-        self.pub_collision = rospy.Publisher(predicted_collision_topic, std_msgs.msg.Bool, queue_size = 20)
+        self.pub_predicted_collision = rospy.Publisher(predicted_collision_topic, std_msgs.msg.Bool, queue_size = 20)
         nearest_object_distance_topic = rospy.get_param(os.path.join(root,"pub_nearest_object_distance")) # ACC or Obstacle in the route
         self.pub_nearest_object_distance = rospy.Publisher(nearest_object_distance_topic, std_msgs.msg.Float64, queue_size = 20)
         pedestrian_crossing_occupied_topic = rospy.get_param(os.path.join(root,"pub_pedestrian_crossing_occupied")) # Pedestrian Crossing
         self.pub_pedestrian_crossing_occupied = rospy.Publisher(pedestrian_crossing_occupied_topic, std_msgs.msg.Bool, queue_size = 20)
         merge_occupied_topic = rospy.get_param(os.path.join(root,"pub_merge_occupied")) # Give Way / Stop
         self.pub_merge_occupied = rospy.Publisher(merge_occupied_topic, std_msgs.msg.Bool, queue_size = 20)
-        front_car_topic = rospy.get_param(os.path.join(root,"pub_front_car")) # Overtaking
-        self.pub_front_car = rospy.Publisher(nearest_object_distance_topic, Obstacle, queue_size = 20)
+        front_obstacle_topic = rospy.get_param(os.path.join(root,"pub_front_obstacle")) # Overtaking
+        self.pub_front_obstacle = rospy.Publisher(front_obstacle_topic, Obstacle, queue_size = 20)
+        left_lane_occupied_topic = rospy.get_param(os.path.join(root,"pub_left_lane_occupied")) # Overtaking
+        self.pub_left_lane_occupied = rospy.Publisher(left_lane_occupied_topic, std_msgs.msg.Bool, queue_size = 20)
+        right_lane_occupied_topic = rospy.get_param(os.path.join(root,"pub_right_lane_occupied")) # Overtaking
+        self.pub_right_lane_occupied = rospy.Publisher(right_lane_occupied_topic, std_msgs.msg.Bool, queue_size = 20)
 
         # ROS subscribers
 
         if not self.filter_hdmap:
-            self.sub_road_curvature = rospy.Subscriber("/control/rc", std_msgs.msg.Float64, self.road_curvature_callback)
+            self.rc_max = rospy.get_param('/t4ac/control/classic/t4ac_lqr_ros/t4ac_lqr_ros_node/rc_max')
+            self.sub_road_curvature = rospy.Subscriber("/t4ac/control/rc", std_msgs.msg.Float64, self.road_curvature_callback)
         detections_topic = rospy.get_param(os.path.join(root,"sub_BEV_merged_obstacles"))
         location_topic = rospy.get_param(os.path.join(root,"sub_localization_pose"))
         monitorized_lanes_topic = rospy.get_param(os.path.join(root,"sub_monitorized_lanes"))
@@ -264,7 +272,7 @@ class SmartMOT:
     def smartmot_callback(self, detections_rosmsg, odom_rosmsg, monitorized_lanes_rosmsg):
         """
         """
-        print(">>>>>>>>>>>>>>>>>>")
+        # print(">>>>>>>>>>>>>>>>>>")
         # print("Detections: ", detections_rosmsg.header.stamp.to_sec())
         # print("Odom: ", odom_rosmsg.header.stamp.to_sec())
         # print("Lanes: ", monitorized_lanes_rosmsg.header.stamp.to_sec())
@@ -347,8 +355,13 @@ class SmartMOT:
         monitorized_area_colours = []
 
         trackers_in_route = 0
+        front_obstacle = Obstacle()
+        left_lane_occupied = std_msgs.msg.Bool()
+        right_lane_occupied = std_msgs.msg.Bool()
         nearest_distance = std_msgs.msg.Float64()
         nearest_distance.data = float(self.nearest_object_in_route)
+        pedestrian_crossing_occupied = std_msgs.msg.Bool()
+        merge_occupied = std_msgs.msg.Bool()
 
         world_features = []
         trackers = []
@@ -362,9 +375,11 @@ class SmartMOT:
 
         for lane in monitorized_lanes_rosmsg.lanes:
             if (lane.role == "current" and len(lane.left.way) >= 2):
-                monitors_functions.new_ego_vehicle_prediction(self,odom_rosmsg, lane)
-        #monitors_functions.ego_vehicle_prediction(self,odom_rosmsg)
-        #print("Ego vehicle braking distance: ", float(self.ego_braking_distance))
+                # monitors_functions.new_ego_vehicle_prediction(self,odom_rosmsg, lane)
+                monitors_functions.ego_vehicle_prediction(self,odom_rosmsg)
+        # print("Ego vehicle braking distance: ", float(self.ego_braking_distance))
+
+        # print("Forecasted ego: ", self.ego_forecasted_bboxes)
 
         # Convert input data to bboxes to perform Multi-Object Tracking 
 
@@ -375,15 +390,20 @@ class SmartMOT:
         if not self.use_mot:
         # Only detection
     
+            nearest_object_distance = 50000
             object_in_route = False
             dist = 99999
 
             # Monitorized Lanes (Current, Back, Left, Right)
 
+            # print("Flag collision: ", self.collision_flag.data)
             if not self.collision_flag.data:
+                k = 0
+                # print("Len objects: ", len(bboxes_features))
                 for bbox,type_object in zip(bboxes_features,types):
                     for lane in monitorized_lanes_rosmsg.lanes: 
                         if (lane.role == "current" and len(lane.left.way) >= 2):
+                            # print("CURRENT")
                             object_in_route = True
                             detection = Node()
                             bbox = bbox.reshape(1,-1)
@@ -393,29 +413,63 @@ class SmartMOT:
                             in_polygon, in_road, particular_monitorized_area, dist2centroid = monitors_functions.inside_lane(lane,detection,type_object)
 
                             if in_polygon or in_road:
+                                # print("DENTRO")
                                 #distance_to_object = monitors_functions.calculate_distance_to_nearest_object_inside_route(monitorized_lanes_rosmsg,global_pos)
-                                # print("In route")
+
                                 ego_x_global = odom_rosmsg.pose.pose.position.x
                                 ego_y_global = -odom_rosmsg.pose.pose.position.y
-                                distance_to_object = math.sqrt(pow(ego_x_global-detection.x,2)+pow(ego_y_global-detection.y,2))
+                                dist2object = math.sqrt(pow(ego_x_global-detection.x,2)+pow(ego_y_global-detection.y,2))
+
+                                w = detections_rosmsg.bev_detections_list[k].w
+                                l = detections_rosmsg.bev_detections_list[k].l
+                                yaw = detections_rosmsg.bev_detections_list[k].o
+                                vel_lin = detections_rosmsg.bev_detections_list[k].vel_lin
+                                vel_ang = detections_rosmsg.bev_detections_list[k].vel_ang
+
+                                object_forecasted_bboxes = monitors_functions.aux_prediction(self,w,l,yaw,vel_lin,vel_ang,detection)
+                                flag_collision = monitors_functions.aux_predict_collision(self.ego_forecasted_bboxes,object_forecasted_bboxes)
+                                # print("Flag colision: ", flag_collision)
+
+                                # print("Forecasted object: ", object_forecasted_bboxes)
         
-                                if distance_to_object < self.nearest_object_in_route:
-    
-                                    self.nearest_object_in_route = distance_to_object
-                                    nearest_distance.data = float(self.nearest_object_in_route)
+                                # if distance_to_object < self.nearest_object_in_route:
+                                if dist2object < nearest_object_distance:
+                                    # print("MENOR")
+                                    front_obstacle.type = str(type_object)
+                                    front_obstacle.dist2ego = dist2object
+                                    front_obstacle.twist.linear.x = detections_rosmsg.bev_detections_list[k].vel_lin
+                                    front_obstacle.twist.angular.z = detections_rosmsg.bev_detections_list[k].vel_ang
+                                    # self.nearest_object_in_route = distance_to_object
+                                    # nearest_distance.data = float(self.nearest_object_in_route)
+                                    nearest_object_distance = dist2object
+                                    nearest_distance.data = nearest_object_distance
                                 
-                                if distance_to_object < self.ego_braking_distance:
+                                if flag_collision:
                                     self.collision_flag.data = True
-                                    self.pub_collision.publish(self.collision_flag)
+                                    self.pub_predicted_collision.publish(self.collision_flag)
                                     self.cont = 0
                                     break
+                        elif (lane.role == "left" and len(lane.left.way) >= 2):
+                            detection = Node()
+                            bbox = bbox.reshape(1,-1)
+                            detection.x = bbox[0,0]
+                            detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
+                            _, left_lane_occupied.data, _, _ = monitors_functions.inside_lane(lane,detection,type_object)
+                        elif (lane.role == "right" and len(lane.left.way) >= 2):
+                            detection = Node()
+                            bbox = bbox.reshape(1,-1)
+                            detection.x = bbox[0,0]
+                            detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
+                            _, right_lane_occupied.data, _, _ = monitors_functions.inside_lane(lane,detection,type_object)
                     else: 
                         continue 
                     break
+                    k = k+1
                 if not object_in_route:
                     self.collision_flag.data = False
                     nearest_distance.data = float(50000)
             else:
+                k = 0
                 for bbox,type_object in zip(bboxes_features,types):
                     for lane in monitorized_lanes_rosmsg.lanes: 
                         if (lane.role == "current" and len(lane.left.way) >= 2):
@@ -429,12 +483,19 @@ class SmartMOT:
                             if in_polygon or in_road:
                                 ego_x_global = odom_rosmsg.pose.pose.position.x
                                 ego_y_global = -odom_rosmsg.pose.pose.position.y
-                                aux = math.sqrt(pow(ego_x_global-detection.x,2)+pow(ego_y_global-detection.y,2))
-                                if aux < dist:
-                                    dist = aux
+                                dist2object = math.sqrt(pow(ego_x_global-detection.x,2)+pow(ego_y_global-detection.y,2))
+                                # if aux < dist:
+                                if dist2object < nearest_object_distance:
+                                    # front_obstacle.dist2ego = aux
+                                    # front_obstacle.twist.linear.x = detections_rosmsg.bev_detections_list[k].vel_lin
+                                    # dist = aux
+                                    nearest_object_distance = dist2object
+                                    nearest_distance.data = nearest_object_distance
                             break
-                nearest_distance.data = dist
-                if dist > 5:
+                    k = k+1
+                # nearest_distance.data = dist
+                # if dist > 5:
+                if nearest_distance.data > 5:
                     self.cont += 1
                 else:
                     self.cont = 0
@@ -450,32 +511,39 @@ class SmartMOT:
                     detection.x = bbox[0,0]
                     detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
                     self.pedestrian_crossing_occupied.data = monitors_functions.inside_polygon(detection,self.closest_crosswalk)
-                    if self.pedestrian_crossing_occupied.data:
-                        print("Pedestrian Crossing Occupied: ", self.pedestrian_crossing_occupied.data)
+                    # if self.pedestrian_crossing_occupied.data:
+                        # print("Pedestrian Crossing Occupied: ", self.pedestrian_crossing_occupied.data)
 
             # Monitorized Intersections (Split, Merge, Intersection)
 
-            for bbox,type_object in zip(bboxes_features,types):
-                for lane in self.monitorized_intersections_rosmsg.lanes: 
-                    if (lane.role == "merge" and len(lane.left.way) >= 2):
-                        detection = Node()
-                        bbox = bbox.reshape(1,-1)
-                        detection.x = bbox[0,0]
-                        detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
-                        # print("Lane: ", lane)#, len(lane))
-                        self.merge_occupied.data,_,_,_ = monitors_functions.inside_lane(lane,detection,type_object)
-                        if self.merge_occupied.data:
-                            print("Merging Occupied: ", self.merge_occupied.data)
+            if self.monitorized_intersections_rosmsg:
+                for bbox,type_object in zip(bboxes_features,types):
+                    for lane in self.monitorized_intersections_rosmsg.lanes: 
+                        if (lane.role == "merge" and len(lane.left.way) >= 2):
+                            detection = Node()
+                            bbox = bbox.reshape(1,-1)
+                            detection.x = bbox[0,0]
+                            detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
+                            # print("Lane: ", lane)#, len(lane))
+                            self.merge_occupied.data,_,_,_ = monitors_functions.inside_lane(lane,detection,type_object)
+                            if self.merge_occupied.data:
+                                print("Merging Occupied: ", self.merge_occupied.data)
+                                
 
             # print("Nearest object distance: ", nearest_distance.data)
             # print("Collision: ", self.collision_flag.data)
             
             # Monitors
-
-            self.pub_nearest_object_distance.publish(nearest_distance)
-            self.pub_collision.publish(self.collision_flag)
-            self.pub_pedestrian_crossing_occupied.publish(self.pedestrian_crossing_occupied)
-            self.pub_merge_occupied.publish(self.merge_occupied)
+            # print("Merging Occupied: ", self.merge_occupied.data)
+            # self.pub_nearest_object_distance.publish(nearest_distance)
+            self.pub_predicted_collision.publish(self.collision_flag)
+            self.pub_pedestrian_crossing_occupied.publish(pedestrian_crossing_occupied)
+            self.pub_merge_occupied.publish(merge_occupied)
+            # print("Front obstacle: ", front_obstacle)
+            # print("Left lane occupied: ", left_lane_occupied.data)
+            # self.pub_front_obstacle.publish(front_obstacle)
+            # self.pub_left_lane_occupied.publish(left_lane_occupied)
+            # self.pub_right_lane_occupied.publish(right_lane_occupied)
         else:
             # Multi-Object Tracking
 
@@ -718,7 +786,7 @@ class SmartMOT:
             # print("Collision: ", self.collision_flag.data)
             # print("Trackers list: ", len(self.trackers_marker_list.markers))
             self.pub_bev_sort_tracking_markers_list.publish(self.trackers_marker_list) 
-            self.pub_collision.publish(self.collision_flag)         
+            self.pub_predicted_collision.publish(self.collision_flag)         
             self.pub_nearest_object_distance.publish(nearest_distance)
 
             self.particular_monitorized_area_list = self.mot_tracker.get_particular_monitorized_area_list(detections_rosmsg.header.stamp,

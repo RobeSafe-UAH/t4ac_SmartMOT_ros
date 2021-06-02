@@ -11,6 +11,7 @@ AB4COGT to SmartMOT
 
 # General purpose imports
 
+import math
 import numpy as np
 from scipy.spatial.distance import euclidean
 
@@ -94,11 +95,11 @@ class AB4COGT2SORT():
              
             published_obj = 0
 
-            for obj in range(len(carla_objects_msg.objects)):
-                identity = carla_objects_msg.objects[obj].id
+            for i in range(len(carla_objects_msg.objects)):
+                identity = carla_objects_msg.objects[i].id
 
                 if identity != self.ego_vehicle_id:			
-                    xyz = carla_objects_msg.objects[obj].pose.position
+                    xyz = carla_objects_msg.objects[i].pose.position
                     location = [xyz.x, xyz.y, xyz.z]
 
                     # Only store groundtruth of objects in Lidar range
@@ -107,9 +108,9 @@ class AB4COGT2SORT():
                     # if euclidean(location, location_ego) < 25: # Compare to LiDAR range
                         # Get data from object topic
                     
-                    quat_xyzw 	= carla_objects_msg.objects[obj].pose.orientation
-                    w,l,h 		= carla_objects_msg.objects[obj].shape.dimensions
-                    label 		= classification_list[carla_objects_msg.objects[obj].classification]
+                    quat_xyzw 	= carla_objects_msg.objects[i].pose.orientation
+                    w,l,h 		= carla_objects_msg.objects[i].shape.dimensions
+                    label 		= classification_list[carla_objects_msg.objects[i].classification]
                     
                     # Calculate heading and alpha (obs_angle)
 
@@ -129,10 +130,14 @@ class AB4COGT2SORT():
                         and (location_local[1] > obstacles_list.left) and (location_local[1] < obstacles_list.right):
                         published_obj += 1
 
-                        # Local position, heading and dimensions
+                        # Local position, heading and velocities (w.r.t map_frame)
 
                         xyz     = location_local
                         heading = -heading # In CARLA it is the opposite
+                        vel_x = carla_objects_msg.objects[i].twist.linear.x
+                        vel_y = carla_objects_msg.objects[i].twist.linear.y
+                        vel_lin = math.sqrt(pow(vel_x,2)+pow(vel_y,2))
+                        vel_ang = carla_objects_msg.objects[i].twist.angular.z
 
                         # Get 3D bounding box corners
 
@@ -161,8 +166,9 @@ class AB4COGT2SORT():
 
                         obj.x = xyz[0] # Lidar_frame coordinates # -xyz[1]
                         obj.y = xyz[1]                           # -xyz[0]
-                        obj.tl_br = [0,0,0,0] # 2D bbox (Image plane) top-left, bottom-right  xy coordinates
-                        
+                        obj.vel_lin = vel_lin
+                        obj.vel_ang = vel_ang
+                        obj.tl_br = [0,0,0,0] # 2D bbox (Image plane) top-left, bottom-right  xy coordinates  
                         obj.l = l # Lidar_frame coordinates
                         obj.w = w  
                         obj.o = heading   

@@ -248,6 +248,21 @@ def calculate_distance_to_nearest_object_inside_route(monitorized_lanes,obstacle
 
 # Prediction functions #
 
+def aux_predict_collision(predicted_ego_vehicle,predicted_obstacle):
+    """
+    Search for possible collision between the ego-vehicle and the obstacles predicted positions
+    """
+
+    o = 0.0
+
+    for i,ego in enumerate(predicted_ego_vehicle):
+        obs = predicted_obstacle[i].reshape(-1)
+        o = geometric_functions.iou(ego[0],obs) 
+        # print("o: ", o)
+        if o > 0.0: # Overlap  
+            return True 
+    return False
+
 def predict_collision(predicted_ego_vehicle,predicted_obstacle,static=None,emergency_break=None):
     """
     Search for possible collision between the ego-vehicle and the obstacles predicted positions
@@ -298,6 +313,51 @@ def calculate_index_last_waypoint(lane, predicted_distance):
             return i+1
     return len(lane.left.way)-1
 
+def aux_prediction(self, w, l, yaw, abs_vel, ang_vel, global_coordinates): # Delete this
+    ## Calculate forecasted bounding boxes 
+
+    seconds = []
+
+    if abs(abs_vel) != 0.0: # The vehicle is moving   
+        pf = PolynomialFeatures(degree = 2)
+        vel_kmh = abs_vel * 3.6 # m/s to km/h
+        braking_distance = self.velocity_braking_distance_model.predict(pf.fit_transform([[vel_kmh]]))
+        seconds_required = braking_distance / abs_vel
+        
+        if seconds_required < self.seconds_ahead:
+            seconds_required = self.seconds_ahead # Predict the trajectory at least x seconds ahead
+
+        for i in range(self.n):
+            seconds.append(float(seconds_required)/float(self.n)*(i+1))
+    else:
+        self.ego_braking_distance = 0
+        seconds = np.zeros((4,1))
+
+    object_forecasted_bboxes = []
+
+    s = float(l) * w # Area of the bounding box
+    r = float(w) / l # Aspect ratio
+
+    forecasted_x = np.zeros((self.n,5)) # n times (x,y,s,r,theta), x means ego-vehicle state
+
+    for i,second in enumerate(seconds):
+        if i == 0:
+            angle = yaw
+        else:
+            angle = forecasted_x[i-1,4]
+
+        # global x,y centroid, scale and aspect ratio (assumed to be constant) and orientation
+
+        forecasted_x[i,0] = global_coordinates.x + abs_vel*seconds[i]*math.cos(angle)
+        forecasted_x[i,1] = global_coordinates.y + abs_vel*seconds[i]*math.sin(angle)
+        forecasted_x[i,2] = s 
+        forecasted_x[i,3] = r 
+        forecasted_x[i,4] = angle + ang_vel*seconds[i]*math.cos(angle)
+
+        forecasted_bbox = sort_functions.convert_x_to_bbox(forecasted_x[i,:])
+        object_forecasted_bboxes.append(forecasted_bbox)
+    return object_forecasted_bboxes
+
 def new_ego_vehicle_prediction(self, odom_rosmsg, current_lane):
     """
     """
@@ -313,7 +373,7 @@ def new_ego_vehicle_prediction(self, odom_rosmsg, current_lane):
     if abs(self.abs_vel) != 0.0: # The vehicle is moving   
         pf = PolynomialFeatures(degree = 2)
         self.ego_braking_distance = self.velocity_braking_distance_model.predict(pf.fit_transform([[vel_kmh]]))
-
+        # print("Braking: ", self.ego_braking_distance)
         seconds_required = self.ego_braking_distance/self.abs_vel
         
         if seconds_required < self.seconds_ahead:
@@ -417,7 +477,7 @@ def ego_vehicle_prediction(self, odom_rosmsg):
 
     ## Calculate forecasted bounding boxes 
 
-    del self.ego_forecasted_bboxesselfego_forecasted_bboxes[:]
+    del self.ego_forecasted_bboxes[:]
 
     s = float(self.ego_dimensions[0]) * self.ego_dimensions[1] # Area of the bounding box
     r = float(self.ego_dimensions[1]) / self.ego_dimensions[0] # Aspect ratio

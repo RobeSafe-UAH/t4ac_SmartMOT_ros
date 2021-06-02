@@ -221,7 +221,8 @@ def iou(bb_1,bb_2):
   """
   Computes IOU between two (possibly) rotated bounding boxes in the form [x,y,w,l,theta]
   """
-
+#   print("BB 1: ", bb_1)
+#   print("BB 2: ", bb_2)
   corners_1 = compute_corners(bb_1)
   corners_2 = compute_corners(bb_2)
   #print("corners 1: ", corners_1)
@@ -234,8 +235,8 @@ def iou(bb_1,bb_2):
   intersection = b1.intersection(b2).area
   union = b1.union(b2).area
 
-  print("Intersection: ", intersection)
-  print("Union: ", union)
+#   print("Intersection: ", intersection)
+#   print("Union: ", union)
 
   if union > 0.0:
     o = intersection / union
