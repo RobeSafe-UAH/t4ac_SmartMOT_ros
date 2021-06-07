@@ -510,9 +510,12 @@ class SmartMOT:
                     bbox = bbox.reshape(1,-1)
                     detection.x = bbox[0,0]
                     detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
-                    self.pedestrian_crossing_occupied.data = monitors_functions.inside_polygon(detection,self.closest_crosswalk)
+                    # print("Crosswalk: ", self.closest_crosswalk)
+                    # print("Detection: ", detection.x, detection.y)
+                    pedestrian_crossing_occupied.data = monitors_functions.inside_polygon(detection,self.closest_crosswalk)
+                    # print("Flag: ", pedestrian_crossing_occupied.data)
                     # if self.pedestrian_crossing_occupied.data:
-                        # print("Pedestrian Crossing Occupied: ", self.pedestrian_crossing_occupied.data)
+                        # print("Pedestrian Crossing Occupied: ", pedestrian_crossing_occupied.data)
 
             # Monitorized Intersections (Split, Merge, Intersection)
 
@@ -525,9 +528,9 @@ class SmartMOT:
                             detection.x = bbox[0,0]
                             detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
                             # print("Lane: ", lane)#, len(lane))
-                            self.merge_occupied.data,_,_,_ = monitors_functions.inside_lane(lane,detection,type_object)
-                            if self.merge_occupied.data:
-                                print("Merging Occupied: ", self.merge_occupied.data)
+                            merge_occupied.data,_,_,_ = monitors_functions.inside_lane(lane,detection,type_object)
+                            # if self.merge_occupied.data:
+                            #     print("Merging Occupied: ", merge_occupied.data)
                                 
 
             # print("Nearest object distance: ", nearest_distance.data)
