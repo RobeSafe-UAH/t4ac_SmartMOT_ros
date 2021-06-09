@@ -1,5 +1,13 @@
 <launch>
     <arg name="lidar_camera_fusion" default="true"/>
+    <arg name="detection_groundtruth" default="false"/>
+
+    <!-- Detection Groundtruth -->
+
+    <group if="$(eval detection_groundtruth == true)">
+         <node pkg="t4ac_smartmot_ros" type="t4ac_ab4cogt_ros_node.py" name="t4ac_ab4cogt_ros_node" output="screen"/>
+    </group>
+    <!--  -->
 
     <arg name="t4ac_smartmot_ros_node" value="/t4ac/perception/tracking_and_prediction/classic/t4ac_smartmot_ros/t4ac_smartmot_ros_node"/>
     <arg name="t4ac_sensor_fusion_ros_node" value="/t4ac/perception/detection/sensor_fusion/t4ac_sensor_fusion_ros/t4ac_sensor_fusion_ros_node"/>
@@ -42,4 +50,6 @@
 </launch>
 
 <!-- output="screen" -->
+
+<!-- rosbag record -O "test_overtaking.bag" /carla/ego_vehicle/camera/depth/front/image_depth /carla/ego_vehicle/vehicle_info /carla/objects /t4ac/localization/pose /t4ac/mapping/monitor/lanes /t4ac/mapping/monitor/lanes_marker /tf /carla/ego_vehicle/lidar/lidar1/point_cloud -->
 

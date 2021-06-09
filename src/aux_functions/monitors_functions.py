@@ -335,8 +335,10 @@ def aux_prediction(self, w, l, yaw, abs_vel, ang_vel, global_coordinates): # Del
 
     object_forecasted_bboxes = []
 
+    # print("Yaw: ", yaw)
     s = float(l) * w # Area of the bounding box
     r = float(w) / l # Aspect ratio
+    # print("s,r ego: ", s,r)
 
     forecasted_x = np.zeros((self.n,5)) # n times (x,y,s,r,theta), x means ego-vehicle state
 
@@ -356,6 +358,52 @@ def aux_prediction(self, w, l, yaw, abs_vel, ang_vel, global_coordinates): # Del
 
         forecasted_bbox = sort_functions.convert_x_to_bbox(forecasted_x[i,:])
         object_forecasted_bboxes.append(forecasted_bbox)
+    
+     # Visualize forecasted trajectory
+
+    object_bb_forecasted_marker_list = visualization_msgs.msg.MarkerArray()
+
+    for i,forecasted_bbox in enumerate(object_forecasted_bboxes):
+        corners_3d = geometric_functions.compute_corners_real(forecasted_bbox[0])
+
+        forecasted_marker = visualization_msgs.msg.Marker()
+
+        forecasted_marker.header.frame_id = "/map"
+        forecasted_marker.header.stamp = rospy.Time.now()
+        forecasted_marker.ns = "object_forecasted_trajectory"
+        forecasted_marker.action = forecasted_marker.ADD
+        forecasted_marker.lifetime = rospy.Duration.from_sec(1)
+        forecasted_marker.id = i
+        forecasted_marker.type = visualization_msgs.msg.Marker.LINE_STRIP
+
+        forecasted_marker.color.r = 1.0
+        forecasted_marker.color.g = 0.0
+        forecasted_marker.color.b = 0.0
+        forecasted_marker.color.a = 1.0
+
+        forecasted_marker.scale.x = 0.25
+        forecasted_marker.pose.orientation.w = 1.0
+
+        order = [0,1,3,2]
+ 
+        for j in order:
+            point = geometry_msgs.msg.Point()
+
+            point.x = corners_3d[0][j]
+            point.y = -corners_3d[1][j]
+            point.z = 0.2
+
+            forecasted_marker.points.append(point)
+
+        point = geometry_msgs.msg.Point()
+        point.x = corners_3d[0][0]
+        point.y = -corners_3d[1][0]
+
+        forecasted_marker.points.append(point) # To close the polygon
+
+        object_bb_forecasted_marker_list.markers.append(forecasted_marker)
+    self.pub_object_forecasted_trajectory_markers_list.publish(object_bb_forecasted_marker_list)
+
     return object_forecasted_bboxes
 
 def new_ego_vehicle_prediction(self, odom_rosmsg, current_lane):
@@ -487,11 +535,10 @@ def ego_vehicle_prediction(self, odom_rosmsg):
     for i,second in enumerate(seconds):
         if i == 0:
             angle = self.current_yaw
-            diff = self.current_yaw - self.previous_yaw
             self.previous_yaw = self.current_yaw
         else:
             angle = forecasted_x[i-1,4]
-
+        # print("Angle ego: ", angle)
         # global x,y centroid, scale and aspect ratio (assumed to be constant) and orientation
 
         forecasted_x[i,0] = ego_global_x + self.abs_vel*seconds[i]*math.cos(angle)

@@ -52,7 +52,7 @@ class AB4COGT2SORT():
         self.first_time = 0 # Flag
         self.first_seq_value = 0 # Stores first seq value to start on 0
 
-        rospy.init_node('CarlaGroundtruth2SORT', anonymous=True)
+        rospy.init_node('t4ac_ab4cogt_ros_node', anonymous=True)
         rospy.Subscriber("/carla/ego_vehicle/vehicle_info", CarlaEgoVehicleInfo, self.ego_vehicle_callback)
         self.pub_groundtruth_obstacles = rospy.Publisher("/t4ac/perception/detection/sensor_fusion/t4ac_sensor_fusion_ros/t4ac_sensor_fusion_ros_node/BEV_merged_obstacles",\
                                                           BEV_detections_list, queue_size=10)
@@ -109,13 +109,13 @@ class AB4COGT2SORT():
                         # Get data from object topic
                     
                     quat_xyzw 	= carla_objects_msg.objects[i].pose.orientation
-                    w,l,h 		= carla_objects_msg.objects[i].shape.dimensions
+                    l,w,h 		= carla_objects_msg.objects[i].shape.dimensions
                     label 		= classification_list[carla_objects_msg.objects[i].classification]
                     
                     # Calculate heading and alpha (obs_angle)
 
                     quaternion 	= np.array((quat_xyzw.x, quat_xyzw.y, quat_xyzw.z, quat_xyzw.w))
-                    heading 	= euler_from_quaternion(quaternion)[2] - np.pi/2
+                    heading 	= euler_from_quaternion(quaternion)[2] #- np.pi/2
                     beta = np.arctan2(xyz.x - xyz_ego.x, xyz_ego.y - xyz.y)
                     obs_angle = ( (heading) + (beta) ) # Alpha (according to KITTI doc)
 
@@ -172,7 +172,7 @@ class AB4COGT2SORT():
                         obj.l = l # Lidar_frame coordinates
                         obj.w = w  
                         obj.o = heading   
-        
+
                         obj.x_corners = [corners_3d[0,0], corners_3d[0,1], corners_3d[0,2], corners_3d[0,3]] #Array of x coordinates (upper left, upper right, lower left, lower right)
                         obj.y_corners = [corners_3d[1,0], corners_3d[1,1], corners_3d[1,2], corners_3d[1,3]]
 
