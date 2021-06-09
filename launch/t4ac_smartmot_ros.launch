@@ -51,5 +51,5 @@
 
 <!-- output="screen" -->
 
-<!-- rosbag record -O "test_overtaking.bag" /carla/ego_vehicle/camera/depth/front/image_depth /carla/ego_vehicle/vehicle_info /carla/objects /t4ac/localization/pose /t4ac/mapping/monitor/lanes /t4ac/mapping/monitor/lanes_marker /tf /carla/ego_vehicle/lidar/lidar1/point_cloud -->
+<!-- rosbag record -O "test_overtaking.bag" /carla/ego_vehicle/camera/rgb/front/camera_info /carla/ego_vehicle/camera/rgb/front/image_color /carla/ego_vehicle/camera/depth/front/image_depth /carla/ego_vehicle/vehicle_info /carla/objects /t4ac/localization/pose /t4ac/mapping/monitor/lanes /t4ac/mapping/monitor/lanes_marker /tf /carla/ego_vehicle/lidar/lidar1/point_cloud -->
 

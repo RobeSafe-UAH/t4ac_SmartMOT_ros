@@ -311,10 +311,10 @@ class SmartMOT:
             self.image_front = int(round(self.real_front*r))
             self.image_left = int(round(self.real_left*r))
 
-            print("Real width: ", self.real_width)
-            print("Real height: ", self.real_height)
-            print("Image width: ", self.image_width)
-            print("Image height: ", self.image_height)
+            # print("Real width: ", self.real_width)
+            # print("Real height: ", self.real_height)
+            # print("Image width: ", self.image_width)
+            # print("Image height: ", self.image_height)
 
             self.shapes = (self.real_front,self.real_left,self.image_front,self.image_left)
             self.scale_factor = (self.image_height/self.real_height,self.image_width/self.real_width)
@@ -543,7 +543,7 @@ class SmartMOT:
 
             # Monitors
 
-            # print("Collision: ", self.collision_flag.data)
+            print("Collision: ", self.collision_flag.data)
             print("Front obstacle dist: ", front_obstacle.dist2ego)
             print("Front obstacle vel lin: ", front_obstacle.twist.linear.x)
             print("Left lane occupied: ", left_lane_occupied.data)
