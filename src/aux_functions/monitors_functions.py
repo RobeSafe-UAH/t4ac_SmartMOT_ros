@@ -450,11 +450,17 @@ def new_ego_vehicle_prediction(self, odom_rosmsg, current_lane):
     points.type = visualization_msgs.msg.Marker.POINTS
     line_strip.type = visualization_msgs.msg.Marker.LINE_STRIP
 
-    points.scale.x = 0.25
-    points.scale.y = 0.25
-    line_strip.scale.x = 0.1
+    points.scale.x = 0.4
+    points.scale.y = 0.4
+    line_strip.scale.x = 0.2
 
+    points.color.r = 1.0
+    points.color.g = 0.5
+    points.color.b = 0.0
     points.color.a = 1.0
+    line_strip.color.r = 1.0
+    line_strip.color.g = 0.5
+    line_strip.color.b = 0.0
     line_strip.color.a = 1.0 # Both are black
 
     for i in range(1,index+1):
@@ -478,7 +484,7 @@ def ego_vehicle_prediction(self, odom_rosmsg):
 
     self.abs_vel = math.sqrt(pow(odom_rosmsg.twist.twist.linear.x,2)+pow(odom_rosmsg.twist.twist.linear.y,2))
     vel_kmh = self.abs_vel * 3.6 # m/s to km/h
-    vel_angular = odom_rosmsg.twist.twist.angular.z
+    vel_angular = -odom_rosmsg.twist.twist.angular.z
 
     #print("Ego vehicle velocity: ", vel_kmh)
 
@@ -552,48 +558,57 @@ def ego_vehicle_prediction(self, odom_rosmsg):
 
     # Visualize forecasted trajectory
 
-    self.ego_trajectory_forecasted_marker_list.markers = []
+    #self.ego_trajectory_forecasted_marker_list.markers = []
+    ego_trajectory_forecasted_path = nav_msgs.msg.Path()
+    ego_trajectory_forecasted_path.header.stamp = odom_rosmsg.header.stamp
+    ego_trajectory_forecasted_path.header.frame_id = self.map_frame
 
     for i,forecasted_bbox in enumerate(self.ego_forecasted_bboxes):
-        corners_3d = geometric_functions.compute_corners_real(forecasted_bbox[0])
+        point = geometry_msgs.msg.PoseStamped()
 
-        forecasted_marker = visualization_msgs.msg.Marker()
+        point.pose.position.x = forecasted_bbox[0,0]
+        point.pose.position.y = -forecasted_bbox[0,1]
 
-        forecasted_marker.header.frame_id = "/map"
-        forecasted_marker.header.stamp = odom_rosmsg.header.stamp
-        forecasted_marker.ns = "ego_vehicle_forecasted_trajectory"
-        forecasted_marker.action = forecasted_marker.ADD
-        forecasted_marker.lifetime = rospy.Duration.from_sec(1)
-        forecasted_marker.id = i
-        forecasted_marker.type = visualization_msgs.msg.Marker.LINE_STRIP
+        ego_trajectory_forecasted_path.poses.append(point)
+        # corners_3d = geometric_functions.compute_corners_real(forecasted_bbox[0])
 
-        forecasted_marker.color.r = 0.0
-        forecasted_marker.color.g = 0.0
-        forecasted_marker.color.b = 1.0
-        forecasted_marker.color.a = 1.0
+        # forecasted_marker = visualization_msgs.msg.Marker()
 
-        forecasted_marker.scale.x = 0.25
-        forecasted_marker.pose.orientation.w = 1.0
+        # forecasted_marker.header.frame_id = "/map"
+        # forecasted_marker.header.stamp = odom_rosmsg.header.stamp
+        # forecasted_marker.ns = "ego_vehicle_forecasted_trajectory"
+        # forecasted_marker.action = forecasted_marker.ADD
+        # forecasted_marker.lifetime = rospy.Duration.from_sec(1)
+        # forecasted_marker.id = i
+        # forecasted_marker.type = visualization_msgs.msg.Marker.LINE_STRIP
 
-        order = [0,1,3,2]
+        # forecasted_marker.color.r = 0.0
+        # forecasted_marker.color.g = 0.0
+        # forecasted_marker.color.b = 1.0
+        # forecasted_marker.color.a = 1.0
+
+        # forecasted_marker.scale.x = 0.25
+        # forecasted_marker.pose.orientation.w = 1.0
+
+        # order = [0,1,3,2]
  
-        for j in order:
-            point = geometry_msgs.msg.Point()
+        # for j in order:
+        #     point = geometry_msgs.msg.Point()
 
-            point.x = corners_3d[0][j]
-            point.y = -corners_3d[1][j]
-            point.z = 0.2
+        #     point.x = corners_3d[0][j]
+        #     point.y = -corners_3d[1][j]
+        #     point.z = 0.2
 
-            forecasted_marker.points.append(point)
+        #     forecasted_marker.points.append(point)
 
-        point = geometry_msgs.msg.Point()
-        point.x = corners_3d[0][0]
-        point.y = -corners_3d[1][0]
+        # point = geometry_msgs.msg.Point()
+        # point.x = corners_3d[0][0]
+        # point.y = -corners_3d[1][0]
 
-        forecasted_marker.points.append(point) # To close the polygon
+        # forecasted_marker.points.append(point) # To close the polygon
 
-        self.ego_trajectory_forecasted_marker_list.markers.append(forecasted_marker)
-    self.pub_ego_vehicle_forecasted_trajectory_markers_list.publish(self.ego_trajectory_forecasted_marker_list)
+        # self.ego_trajectory_forecasted_marker_list.markers.append(forecasted_marker)
+    self.pub_ego_vehicle_forecasted_trajectory_markers_list.publish(ego_trajectory_forecasted_path)
 
 # End Prediction functions #
 
