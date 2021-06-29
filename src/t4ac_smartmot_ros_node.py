@@ -166,19 +166,19 @@ class SmartMOT:
         ## Monitors
 
         predicted_collision_topic = rospy.get_param(os.path.join(root,"pub_predicted_collision")) # Unexpected Pedestrian or Collision
-        self.pub_predicted_collision = rospy.Publisher(predicted_collision_topic, std_msgs.msg.Bool, queue_size = 20)
+        self.pub_predicted_collision = rospy.Publisher(predicted_collision_topic, std_msgs.msg.Bool, queue_size = 1)
         nearest_object_distance_topic = rospy.get_param(os.path.join(root,"pub_nearest_object_distance")) # ACC or Obstacle in the route
-        self.pub_nearest_object_distance = rospy.Publisher(nearest_object_distance_topic, std_msgs.msg.Float64, queue_size = 20)
+        self.pub_nearest_object_distance = rospy.Publisher(nearest_object_distance_topic, std_msgs.msg.Float64, queue_size = 1)
         pedestrian_crossing_occupied_topic = rospy.get_param(os.path.join(root,"pub_pedestrian_crossing_occupied")) # Pedestrian Crossing
-        self.pub_pedestrian_crossing_occupied = rospy.Publisher(pedestrian_crossing_occupied_topic, std_msgs.msg.Bool, queue_size = 20)
+        self.pub_pedestrian_crossing_occupied = rospy.Publisher(pedestrian_crossing_occupied_topic, std_msgs.msg.Bool, queue_size = 1)
         merge_occupied_topic = rospy.get_param(os.path.join(root,"pub_merge_occupied")) # Give Way / Stop
-        self.pub_merge_occupied = rospy.Publisher(merge_occupied_topic, std_msgs.msg.Bool, queue_size = 20)
+        self.pub_merge_occupied = rospy.Publisher(merge_occupied_topic, std_msgs.msg.Bool, queue_size = 1)
         front_obstacle_topic = rospy.get_param(os.path.join(root,"pub_front_obstacle")) # Overtaking
-        self.pub_front_obstacle = rospy.Publisher(front_obstacle_topic, Obstacle, queue_size = 20)
+        self.pub_front_obstacle = rospy.Publisher(front_obstacle_topic, Obstacle, queue_size = 1)
         left_lane_occupied_topic = rospy.get_param(os.path.join(root,"pub_left_lane_occupied")) # Overtaking
-        self.pub_left_lane_occupied = rospy.Publisher(left_lane_occupied_topic, std_msgs.msg.Bool, queue_size = 20)
+        self.pub_left_lane_occupied = rospy.Publisher(left_lane_occupied_topic, std_msgs.msg.Bool, queue_size = 1)
         right_lane_occupied_topic = rospy.get_param(os.path.join(root,"pub_right_lane_occupied")) # Overtaking
-        self.pub_right_lane_occupied = rospy.Publisher(right_lane_occupied_topic, std_msgs.msg.Bool, queue_size = 20)
+        self.pub_right_lane_occupied = rospy.Publisher(right_lane_occupied_topic, std_msgs.msg.Bool, queue_size = 1)
 
         # ROS subscribers
 
@@ -273,7 +273,7 @@ class SmartMOT:
         """
         """
     
-        # print(">>>>>>>>>>>>>>>>>>")
+        print(">>>>>>>>>>>>>>>>>>")
         # print("Detections: ", detections_rosmsg.header.stamp.to_sec())
         # print("Odom: ", odom_rosmsg.header.stamp.to_sec())
         # print("Lanes: ", monitorized_lanes_rosmsg.header.stamp.to_sec())
@@ -365,7 +365,9 @@ class SmartMOT:
         nearest_distance = std_msgs.msg.Float64()
         nearest_distance.data = float(self.nearest_object_in_route)
         pedestrian_crossing_occupied = std_msgs.msg.Bool()
+        pedestrian_crossing_occupied.data = False
         merge_occupied = std_msgs.msg.Bool()
+        merge_occupied.data = False
 
         world_features = []
         trackers = []
@@ -518,13 +520,14 @@ class SmartMOT:
                     detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
                     # print("Crosswalk: ", self.closest_crosswalk)
                     # print("Detection: ", detection.x, detection.y)
-                    pedestrian_crossing_occupied.data = monitors_functions.inside_polygon(detection,self.closest_crosswalk)
-                    # print("Flag: ", pedestrian_crossing_occupied.data)
+                    pedestrian_crossing_flag = monitors_functions.inside_polygon(detection,self.closest_crosswalk)
+                    pedestrian_crossing_occupied.data = pedestrian_crossing_flag
                     if pedestrian_crossing_occupied.data:
-                        print("Pedestrian Crossing Occupied: ", pedestrian_crossing_occupied.data)
+                        # print("Pedestrian Crossing Occupied: ", pedestrian_crossing_occupied.data)
+                        break
 
             # Monitorized Intersections (Split, Merge, Intersection)
-
+            print("Merge 1: ", merge_occupied.data, id(merge_occupied))
             if self.monitorized_intersections_rosmsg:
                 for bbox,type_object in zip(bboxes_features,types):
                     for lane in self.monitorized_intersections_rosmsg.lanes: 
@@ -534,9 +537,15 @@ class SmartMOT:
                             detection.x = bbox[0,0]
                             detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
                             # print("Lane: ", lane)#, len(lane))
-                            merge_occupied.data,_,_,_ = monitors_functions.inside_lane(lane,detection,type_object)
+                            merge_flag,_,_,_ = monitors_functions.inside_lane(lane,detection,type_object)
+                            merge_occupied.data = merge_flag
                             if merge_occupied.data:
-                                print("Merging Occupied: ", merge_occupied.data)
+                                print("Merge 2: ", merge_occupied.data, id(merge_occupied))
+                                break
+                    else: 
+                        continue
+                    break
+            print("Merge 3: ", merge_occupied.data, id(merge_occupied))           
 
             # Monitors
 
@@ -551,6 +560,8 @@ class SmartMOT:
             self.pub_predicted_collision.publish(self.collision_flag)
             self.pub_front_obstacle.publish(front_obstacle)
             self.pub_pedestrian_crossing_occupied.publish(pedestrian_crossing_occupied)
+            if merge_occupied.data:
+                print("Post Merge occupied: ", merge_occupied.data)
             self.pub_merge_occupied.publish(merge_occupied)
             self.pub_left_lane_occupied.publish(left_lane_occupied)
             self.pub_right_lane_occupied.publish(right_lane_occupied)
