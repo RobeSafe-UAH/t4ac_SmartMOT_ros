@@ -384,7 +384,7 @@ class SmartMOT:
 
         for lane in monitorized_lanes_rosmsg.lanes:
             if (lane.role == "current" and len(lane.left.way) >= 2):
-                # monitors_functions.new_ego_vehicle_prediction(self,odom_rosmsg, lane)
+                #monitors_functions.new_ego_vehicle_prediction(self,odom_rosmsg, lane)
                 monitors_functions.ego_vehicle_prediction(self,odom_rosmsg)
         # print("Ego vehicle braking distance: ", float(self.ego_braking_distance))
 
