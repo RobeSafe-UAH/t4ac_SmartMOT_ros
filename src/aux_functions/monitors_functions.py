@@ -402,7 +402,7 @@ def aux_prediction(self, w, l, yaw, abs_vel, ang_vel, global_coordinates): # Del
         forecasted_marker.points.append(point) # To close the polygon
 
         object_bb_forecasted_marker_list.markers.append(forecasted_marker)
-    self.pub_object_forecasted_trajectory_markers_list.publish(object_bb_forecasted_marker_list)
+    # self.pub_object_forecasted_trajectory_markers_list.publish(object_bb_forecasted_marker_list)
 
     return object_forecasted_bboxes
 
@@ -435,7 +435,7 @@ def new_ego_vehicle_prediction(self, odom_rosmsg, current_lane):
         seconds = np.zeros((4,1))
 
     index = calculate_index_last_waypoint(current_lane, self.ego_braking_distance)
-
+    
     points = visualization_msgs.msg.Marker()
     line_strip = visualization_msgs.msg.Marker()
     points.header.frame_id = line_strip.header.frame_id = "/map"
@@ -473,9 +473,10 @@ def new_ego_vehicle_prediction(self, odom_rosmsg, current_lane):
         points.points.append(point)
         line_strip.points.append(point)
 
-    self.ego_trajectory_forecasted_marker_list.markers.append(points)
-    self.ego_trajectory_forecasted_marker_list.markers.append(line_strip)
-    self.pub_ego_vehicle_forecasted_trajectory_markers_list.publish(self.ego_trajectory_forecasted_marker_list)
+    ego_trajectory_forecasted_marker_list = visualization_msgs.msg.MarkerArray()
+    ego_trajectory_forecasted_marker_list.markers.append(points)
+    ego_trajectory_forecasted_marker_list.markers.append(line_strip)
+    self.pub_ego_vehicle_forecasted_trajectory_markers_list.publish(ego_trajectory_forecasted_marker_list)
 
 def ego_vehicle_prediction(self, odom_rosmsg):
     """

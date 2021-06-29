@@ -76,7 +76,7 @@ class AB4COGT2SORT():
 
         groundtruth_obstacles_list = BEV_detections_list()	
         groundtruth_obstacles_list.header.stamp = carla_objects_msg.header.stamp
-        groundtruth_obstacles_list.front = 30
+        groundtruth_obstacles_list.front = 40
         groundtruth_obstacles_list.back = -15
         groundtruth_obstacles_list.left = -15
         groundtruth_obstacles_list.right = 15

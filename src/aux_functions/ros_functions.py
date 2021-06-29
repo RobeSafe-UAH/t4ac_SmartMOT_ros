@@ -18,7 +18,7 @@ def marker_bb(location,quat_xyzw,dim,published_obj):
     box_marker.type = Marker.CUBE
     box_marker.pose.position.x = location[0]
     box_marker.pose.position.y = location[1]
-    box_marker.pose.position.z = location[2]
+    box_marker.pose.position.z = location[2]+0.8
     box_marker.pose.orientation.x = quat_xyzw.x
     box_marker.pose.orientation.y = quat_xyzw.y 
     box_marker.pose.orientation.z = quat_xyzw.z
