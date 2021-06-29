@@ -22,6 +22,9 @@ from carla_msgs.msg import CarlaEgoVehicleInfo
 from derived_object_msgs.msg import ObjectArray
 from tf.transformations import euler_from_quaternion
 from t4ac_msgs.msg import BEV_detection, BEV_detections_list
+from visualization_msgs.msg import Marker, MarkerArray
+
+from ros_functions import marker_bb
 
 classification_list = ["unknown",
 			           "Unknown_Small",
@@ -54,8 +57,10 @@ class AB4COGT2SORT():
 
         rospy.init_node('t4ac_ab4cogt_ros_node', anonymous=True)
         rospy.Subscriber("/carla/ego_vehicle/vehicle_info", CarlaEgoVehicleInfo, self.ego_vehicle_callback)
-        self.pub_groundtruth_obstacles = rospy.Publisher("/t4ac/perception/detection/sensor_fusion/t4ac_sensor_fusion_ros/t4ac_sensor_fusion_ros_node/BEV_merged_obstacles",\
+        self.pub_groundtruth_obstacles = rospy.Publisher("/t4ac/perception/detection/BEV_groundtruth_obstacles",\
                                                           BEV_detections_list, queue_size=10)
+        self.pub_groundtruth_obstacles_marker = rospy.Publisher("/t4ac/perception/detection/3D_groundtruth_obstacles_marker",\
+                                                          MarkerArray, queue_size=10)
         rospy.spin()
         
     def ego_vehicle_callback(self, ego_vehicle_info_msg):
@@ -67,12 +72,14 @@ class AB4COGT2SORT():
         """
         """
 
-        obstacles_list = BEV_detections_list()	
-        obstacles_list.header.stamp = carla_objects_msg.header.stamp
-        obstacles_list.front = 30
-        obstacles_list.back = -15
-        obstacles_list.left = -15
-        obstacles_list.right = 15
+        groundtruth_obstacles_marker_array = MarkerArray()
+
+        groundtruth_obstacles_list = BEV_detections_list()	
+        groundtruth_obstacles_list.header.stamp = carla_objects_msg.header.stamp
+        groundtruth_obstacles_list.front = 40
+        groundtruth_obstacles_list.back = -15
+        groundtruth_obstacles_list.left = -15
+        groundtruth_obstacles_list.right = 15
 
         number_objects = len(carla_objects_msg.objects) # Including the ego-vehicle
         if number_objects > 1:
@@ -94,10 +101,9 @@ class AB4COGT2SORT():
             # frame = carla_objects_msg.header.seq - self.first_seq_value
              
             published_obj = 0
-
+            
             for i in range(len(carla_objects_msg.objects)):
                 identity = carla_objects_msg.objects[i].id
-
                 if identity != self.ego_vehicle_id:			
                     xyz = carla_objects_msg.objects[i].pose.position
                     location = [xyz.x, xyz.y, xyz.z]
@@ -109,7 +115,8 @@ class AB4COGT2SORT():
                         # Get data from object topic
                     
                     quat_xyzw 	= carla_objects_msg.objects[i].pose.orientation
-                    l,w,h 		= carla_objects_msg.objects[i].shape.dimensions
+                    dim 		= carla_objects_msg.objects[i].shape.dimensions
+                    l,w,h       = dim
                     label 		= classification_list[carla_objects_msg.objects[i].classification]
                     
                     # Calculate heading and alpha (obs_angle)
@@ -126,8 +133,8 @@ class AB4COGT2SORT():
                     R = self.rotz(-heading_ego)
                     location_local = np.dot(R, location_local) # [0:2]
                 
-                    if (location_local[0] > obstacles_list.back) and (location_local[0] < obstacles_list.front) \
-                        and (location_local[1] > obstacles_list.left) and (location_local[1] < obstacles_list.right):
+                    if (location_local[0] > groundtruth_obstacles_list.back) and (location_local[0] < groundtruth_obstacles_list.front) \
+                        and (location_local[1] > groundtruth_obstacles_list.left) and (location_local[1] < groundtruth_obstacles_list.right):
                         published_obj += 1
 
                         # Local position, heading and velocities (w.r.t map_frame)
@@ -145,9 +152,9 @@ class AB4COGT2SORT():
                         y_lidar = xyz[1]
                         z_lidar = xyz[2]-3
 
-                        x_corners = [-l/2,-l/2,l/2, l/2,-l/2,-l/2,l/2, l/2] 
-                        y_corners = [ w/2,-w/2,w/2,-w/2, w/2,-w/2,w/2,-w/2]
-                        z_corners = [   0,   0,  0,   0,   h,   h,  h,   h]
+                        x_corners = [-l/2,-l/2, l/2, l/2,-l/2,-l/2,l/2, l/2] 
+                        y_corners = [ w/2,-w/2, w/2,-w/2, w/2,-w/2,w/2,-w/2]
+                        z_corners = [-h/2,-h/2,-h/2,-h/2, h/2, h/2,h/2, h/2]
 
                         if heading > np.pi:
                             heading = heading - np.pi
@@ -158,34 +165,48 @@ class AB4COGT2SORT():
         
                         # Publish in ROS topic
 
-                        obj = BEV_detection()
+                        groundtruth_obstacle = BEV_detection()
 
-                        obj.type = label
-                        obj.score = 1.0 # Groundtruth
-                        obj.object_id = int(identity)
+                        groundtruth_obstacle.type = label
+                        groundtruth_obstacle.score = 1.0 # Groundtruth
+                        groundtruth_obstacle.object_id = int(identity)
 
-                        obj.x = xyz[0] # Lidar_frame coordinates # -xyz[1]
-                        obj.y = xyz[1]                           # -xyz[0]
-                        obj.vel_lin = vel_lin
-                        obj.vel_ang = vel_ang
-                        obj.tl_br = [0,0,0,0] # 2D bbox (Image plane) top-left, bottom-right  xy coordinates  
-                        obj.l = l # Lidar_frame coordinates
-                        obj.w = w  
-                        obj.o = heading   
+                        groundtruth_obstacle.x = xyz[0] # Lidar_frame coordinates # -xyz[1]
+                        groundtruth_obstacle.y = xyz[1]                           # -xyz[0]
+                        groundtruth_obstacle.vel_lin = vel_lin
+                        groundtruth_obstacle.vel_ang = vel_ang
+                        groundtruth_obstacle.tl_br = [0,0,0,0] # 2D bbox (Image plane) top-left, bottom-right  xy coordinates  
+                        groundtruth_obstacle.l = l # Lidar_frame coordinates
+                        groundtruth_obstacle.w = w  
+                        groundtruth_obstacle.o = heading   
 
-                        obj.x_corners = [corners_3d[0,0], corners_3d[0,1], corners_3d[0,2], corners_3d[0,3]] #Array of x coordinates (upper left, upper right, lower left, lower right)
-                        obj.y_corners = [corners_3d[1,0], corners_3d[1,1], corners_3d[1,2], corners_3d[1,3]]
+                        groundtruth_obstacle.x_corners = [corners_3d[0,0], corners_3d[0,1], corners_3d[0,2], corners_3d[0,3]] #Array of x coordinates (upper left, upper right, lower left, lower right)
+                        groundtruth_obstacle.y_corners = [corners_3d[1,0], corners_3d[1,1], corners_3d[1,2], corners_3d[1,3]]
 
-                        obstacles_list.bev_detections_list.append(obj)
+                        groundtruth_obstacles_list.bev_detections_list.append(groundtruth_obstacle)
 
+                        # Marker
+
+                        groundtruth_obstacle_marker = marker_bb(location,quat_xyzw,dim,published_obj)
+                        groundtruth_obstacles_marker_array.markers.append(groundtruth_obstacle_marker)
+            
             if published_obj == 0:
-                obstacle = BEV_detection()
-                obstacles_list.bev_detections_list.append(obstacle)
+                groundtruth_obstacle = BEV_detection()
+                groundtruth_obstacles_list.bev_detections_list.append(groundtruth_obstacle)
+
+                groundtruth_obstacle_marker = Marker()
+                groundtruth_obstacle_marker.header.frame_id = "/map"
+                groundtruth_obstacles_marker_array.markers.append(groundtruth_obstacle_marker)
         else:
-            obstacle = BEV_detection()
-            obstacles_list.bev_detections_list.append(obstacle)
-    
-        self.pub_groundtruth_obstacles.publish(obstacles_list) 
+            groundtruth_obstacle = BEV_detection()
+            groundtruth_obstacle_marker.header.frame_id = "/map"
+            groundtruth_obstacles_list.bev_detections_list.append(groundtruth_obstacle)
+
+            groundtruth_obstacle_marker = Marker()
+            groundtruth_obstacles_marker_array.markers.append(groundtruth_obstacle_marker)
+        
+        self.pub_groundtruth_obstacles.publish(groundtruth_obstacles_list) 
+        self.pub_groundtruth_obstacles_marker.publish(groundtruth_obstacles_marker_array) 
     
 if __name__ == '__main__':
     program = AB4COGT2SORT()
