@@ -273,7 +273,7 @@ class SmartMOT:
         """
         """
     
-        print(">>>>>>>>>>>>>>>>>>")
+        # print(">>>>>>>>>>>>>>>>>>")
         # print("Detections: ", detections_rosmsg.header.stamp.to_sec())
         # print("Odom: ", odom_rosmsg.header.stamp.to_sec())
         # print("Lanes: ", monitorized_lanes_rosmsg.header.stamp.to_sec())
@@ -527,7 +527,7 @@ class SmartMOT:
                         break
 
             # Monitorized Intersections (Split, Merge, Intersection)
-            print("Merge 1: ", merge_occupied.data, id(merge_occupied))
+            # print("Merge 1: ", merge_occupied.data, id(merge_occupied))
             if self.monitorized_intersections_rosmsg:
                 for bbox,type_object in zip(bboxes_features,types):
                     for lane in self.monitorized_intersections_rosmsg.lanes: 
@@ -540,12 +540,12 @@ class SmartMOT:
                             merge_flag,_,_,_ = monitors_functions.inside_lane(lane,detection,type_object)
                             merge_occupied.data = merge_flag
                             if merge_occupied.data:
-                                print("Merge 2: ", merge_occupied.data, id(merge_occupied))
+                                # print("Merge 2: ", merge_occupied.data, id(merge_occupied))
                                 break
                     else: 
                         continue
                     break
-            print("Merge 3: ", merge_occupied.data, id(merge_occupied))           
+            # print("Merge 3: ", merge_occupied.data, id(merge_occupied))           
 
             # Monitors
 
@@ -560,8 +560,6 @@ class SmartMOT:
             self.pub_predicted_collision.publish(self.collision_flag)
             self.pub_front_obstacle.publish(front_obstacle)
             self.pub_pedestrian_crossing_occupied.publish(pedestrian_crossing_occupied)
-            if merge_occupied.data:
-                print("Post Merge occupied: ", merge_occupied.data)
             self.pub_merge_occupied.publish(merge_occupied)
             self.pub_left_lane_occupied.publish(left_lane_occupied)
             self.pub_right_lane_occupied.publish(right_lane_occupied)
