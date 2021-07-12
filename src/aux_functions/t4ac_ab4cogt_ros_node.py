@@ -82,6 +82,7 @@ class AB4COGT2SORT():
         groundtruth_obstacles_list.right = 15
 
         number_objects = len(carla_objects_msg.objects) # Including the ego-vehicle
+
         if number_objects > 1:
             if self.first_time ==0:
                 self.first_time = 1
@@ -199,10 +200,10 @@ class AB4COGT2SORT():
                 groundtruth_obstacles_marker_array.markers.append(groundtruth_obstacle_marker)
         else:
             groundtruth_obstacle = BEV_detection()
-            groundtruth_obstacle_marker.header.frame_id = "/map"
             groundtruth_obstacles_list.bev_detections_list.append(groundtruth_obstacle)
 
             groundtruth_obstacle_marker = Marker()
+            groundtruth_obstacle_marker.header.frame_id = "/map"
             groundtruth_obstacles_marker_array.markers.append(groundtruth_obstacle_marker)
         
         self.pub_groundtruth_obstacles.publish(groundtruth_obstacles_list) 
