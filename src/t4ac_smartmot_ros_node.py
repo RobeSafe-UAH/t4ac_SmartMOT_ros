@@ -1,4 +1,4 @@
-#!/usr/bin/env python2 
+#!/usr/bin/env python3.8
 # -*- coding: utf-8 -*-
 """
 Created on Thu May  7 17:38:44 2020
@@ -6,22 +6,19 @@ Created on Thu May  7 17:38:44 2020
 @author: Carlos Gómez-Huélamo
 
 SmartMOT: Code to track the detections given by a sensor fusion algorithm (converted into Bird's Eye View (Image frame, z-axis inwards 
- with the origin located at the top-left corner) using the SORT (Simple Online and Real-Time Tracking) algorithm as backbone
+with the origin located at the top-left corner) using the SORT (Simple Online and Real-Time Tracking) algorithm as backbone,
+and filtered by a Monitored Lanes-based Attention module
 
 Communications are based on ROS (Robot Operating Sytem)
 
 Inputs: 3D Object Detections topic
-Outputs: Tracked obstacles topic and monitors information (collision prediction, )
+Outputs: Tracked obstacles topic and monitors information (collision prediction, front obstacle, etc.)
 
 Note that each obstacle shows an unique ID in addition to its semantic information (person, car, ...), 
 in order to make easier the decision making processes.
-
-Executed via Python2.7 (python2 map-filtered-mot.py --arguments ...)
 """
 
-from __future__ import print_function
-
-# General-use imports
+# General purpose imports
 
 import os
 import sys
@@ -160,8 +157,6 @@ class SmartMOT:
         # self.pub_ego_vehicle_forecasted_trajectory_markers_list = rospy.Publisher(ego_vehicle_forecasted_trajectory_markers_list, nav_msgs.msg.Path, queue_size = 20)
         topic_bb_forecasted = os.path.join(root,"object_forecasted")
         self.pub_object_forecasted_trajectory_markers_list = rospy.Publisher(topic_bb_forecasted, visualization_msgs.msg.MarkerArray, queue_size = 20)
-
-
 
         ## Monitors
 

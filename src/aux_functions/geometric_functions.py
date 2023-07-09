@@ -24,15 +24,24 @@ import cv2
 from shapely.geometry import Polygon
 
 def dot(v,w):
+    """
+    """
+    
     x,y,z = v
     X,Y,Z = w
     return x*X + y*Y + z*Z
 
 def length(v):
+    """
+    """
+    
     x,y,z = v
     return math.sqrt(x*x + y*y + z*z)
 
 def vector(b,e):
+    """
+    """
+    
     try:
         x,y,z = b.x, b.y, 0.0
         X,Y,Z = e.x, e.y, 0.0
@@ -42,19 +51,31 @@ def vector(b,e):
     return (X-x, Y-y, Z-z)
 
 def unit(v):
+    """
+    """
+    
     x,y,z = v
 
     mag = length(v)
     return (x/mag, y/mag, z/mag)
 
 def distance(p0,p1):
+    """
+    """
+    
     return length(vector(p0,p1))
 
 def scale(v,sc):
+    """
+    """
+    
     x,y,z = v
     return (x * sc, y * sc, z * sc)
 
 def add(v,w):
+    """
+    """
+    
     x,y,z = v
     try:   
         X,Y,Z = w.x, w.y, 0.0
@@ -63,6 +84,9 @@ def add(v,w):
     return (x+X, y+Y, z+Z)
 
 def pnt2line(pnt, start, end):
+    """
+    """
+    
     line_vec = vector(start, end)
     pnt_vec = vector(start, pnt)
     line_len = length(line_vec)
@@ -83,6 +107,7 @@ def rotz(t):
     """ 
     Rotation about the z-axis
     """
+    
     c = np.cos(t)
     s = np.sin(t)
     return np.array([[c,  -s,  0],
@@ -176,6 +201,7 @@ def draw_rotated(contour,centroid,img,my_thickness,color=None):
     """ 
     Draw a rotated rectangle 
     """
+    
     # Contour of the rectangle
 
     rotrect = cv2.minAreaRect(contour)
@@ -211,6 +237,7 @@ def draw_rotated(contour,centroid,img,my_thickness,color=None):
 def compute_and_draw(d,color,my_thickness,output_image):
     """
     """
+    
     d1c, d2c, d3c, d4c = compute_corners(d) # Tracker corners
     contour = np.array([[d1c[0],d1c[1]],[d2c[0],d2c[1]],[d3c[0],d3c[1]],[d4c[0],d4c[1]]])     
     centroid = (d[0].astype(int),d[1].astype(int)) # Tracker centroid
@@ -221,12 +248,10 @@ def iou(bb_1,bb_2):
   """
   Computes IOU between two (possibly) rotated bounding boxes in the form [x,y,w,l,theta]
   """
-#   print("BB 1: ", bb_1)
-#   print("BB 2: ", bb_2)
+
   corners_1 = compute_corners(bb_1)
   corners_2 = compute_corners(bb_2)
-  #print("corners 1: ", corners_1)
-  #print("corners 2: ", corners_2)
+
   # To build the polygon -> Left-bottom corner, Right-bottom, Top-right corner, Top-left corner
 
   b1 = Polygon([corners_1[2],corners_1[3],corners_1[1],corners_1[0]]) 
@@ -234,9 +259,6 @@ def iou(bb_1,bb_2):
   
   intersection = b1.intersection(b2).area
   union = b1.union(b2).area
-
-#   print("Intersection: ", intersection)
-#   print("Union: ", union)
 
   if union > 0.0:
     o = intersection / union
