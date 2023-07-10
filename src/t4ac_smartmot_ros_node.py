@@ -27,6 +27,7 @@ import cv2
 import numpy as np
 import math
 import matplotlib
+import git
 matplotlib.use('Agg') # In order to avoid: RuntimeError: main thread is not in main loop exception
 
 from argparse import ArgumentParser
@@ -36,16 +37,8 @@ from argparse import ArgumentParser
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 
-# Custom functions imports
-
-from aux_functions import geometric_functions
-from aux_functions import monitors_functions
-from aux_functions import sort_functions
-from aux_functions import tracking_functions
-
 # ROS imports
 
-sys.path.insert(0,'/opt/ros/melodic/lib/python2.7/dist-packages')
 import rospy
 import visualization_msgs.msg
 import sensor_msgs.msg
@@ -56,7 +49,18 @@ import tf
 from t4ac_msgs.msg import BEV_detection, BEV_detections_list, MonitorizedLanes, Node, Obstacle
 from message_filters import TimeSynchronizer, ApproximateTimeSynchronizer, Subscriber
 
-# Auxiliar variables
+# Custom functions imports
+
+repo = git.Repo(__file__, search_parent_directories=True)
+BASE_DIR = repo.working_tree_dir
+sys.path.append(BASE_DIR)
+
+from src.aux_functions import geometric_functions
+from src.aux_functions import monitors_functions
+from src.aux_functions import sort_functions
+from src.aux_functions import tracking_functions
+
+# Global variables
 
 detection_threshold = 0.3
 max_age = 3
@@ -70,11 +74,15 @@ path = os.path.curdir + '/results' + filename
 header_synchro = 100
 slop = 1.0
 
+#######################################
+
+# Main class
+
 class SmartMOT:
     def __init__(self):
         # Auxiliar variables
        
-        self.use_mot = False
+        self.use_mot = True
         self.init_scene = False
         self.use_gaussian_noise = True
         self.filter_hdmap = True
@@ -142,7 +150,7 @@ class SmartMOT:
         self.ros = rospy.get_param(os.path.join(root,"use_ros"))
         self.grid = rospy.get_param(os.path.join(root,"use_grid"))
         self.map_frame = rospy.get_param('t4ac/frames/map')
-        self.lidar_frame = rospy.get_param('t4ac/frames/laser')
+        self.lidar_frame = rospy.get_param('t4ac/frames/lidar')
         
         # ROS publishers
 
@@ -180,10 +188,10 @@ class SmartMOT:
         if not self.filter_hdmap:
             self.rc_max = rospy.get_param('/t4ac/control/classic/t4ac_lqr_ros/t4ac_lqr_ros_node/rc_max')
             self.sub_road_curvature = rospy.Subscriber("/t4ac/control/rc", std_msgs.msg.Float64, self.road_curvature_callback)
+            
         detections_topic = rospy.get_param(os.path.join(root,"sub_BEV_merged_obstacles"))
         location_topic = rospy.get_param(os.path.join(root,"sub_localization_pose"))
         monitorized_lanes_topic = rospy.get_param(os.path.join(root,"sub_monitorized_lanes"))
-        monitorized_intersections_topic = rospy.get_param(os.path.join(root,"sub_monitorized_intersections"))
 
         self.sub_detections = Subscriber(detections_topic, BEV_detections_list)
         self.sub_location = Subscriber(location_topic, nav_msgs.msg.Odometry)
@@ -258,20 +266,11 @@ class SmartMOT:
             p.y = -p_aux.y
             self.closest_crosswalk.append(p)
 
-    def monitorized_intersections_callback(self, msg):
-        """
-        """
-
-        self.monitorized_intersections_rosmsg = msg
-
     def smartmot_callback(self, detections_rosmsg, odom_rosmsg, monitorized_lanes_rosmsg):
         """
         """
-    
-        # print(">>>>>>>>>>>>>>>>>>")
-        # print("Detections: ", detections_rosmsg.header.stamp.to_sec())
-        # print("Odom: ", odom_rosmsg.header.stamp.to_sec())
-        # print("Lanes: ", monitorized_lanes_rosmsg.header.stamp.to_sec())
+        
+        print(">>>>>>>>>>>>")
         
         try:                                                         # Target        # Pose
             (translation,quaternion) = self.listener.lookupTransform(self.map_frame, self.lidar_frame, rospy.Time(0)) 
@@ -300,11 +299,6 @@ class SmartMOT:
             self.image_width = int(round(self.real_width*r)) # Grid width (pixels)
             self.image_front = int(round(self.real_front*r))
             self.image_left = int(round(self.real_left*r))
-
-            # print("Real width: ", self.real_width)
-            # print("Real height: ", self.real_height)
-            # print("Image width: ", self.image_width)
-            # print("Image height: ", self.image_height)
 
             self.shapes = (self.real_front,self.real_left,self.image_front,self.image_left)
             self.scale_factor = (self.image_height/self.real_height,self.image_width/self.real_width)
@@ -434,8 +428,6 @@ class SmartMOT:
         
                                 # if distance_to_object < self.nearest_object_in_route:
                                 if dist2object < nearest_object_distance:
-                                    # print("MENOR")
-                                    # print("Type: ", type_object)
                                     front_obstacle.type = str(type_object)
                                     front_obstacle.dist2ego = dist2object
                                     front_obstacle.twist.linear.x = detections_rosmsg.bev_detections_list[k].vel_lin
@@ -496,8 +488,7 @@ class SmartMOT:
                                     nearest_distance.data = nearest_object_distance
                             break
                     k = k+1
-                # nearest_distance.data = dist
-                # if dist > 5:
+
                 if nearest_distance.data > 5:
                     self.cont += 1
                 else:
@@ -513,16 +504,14 @@ class SmartMOT:
                     bbox = bbox.reshape(1,-1)
                     detection.x = bbox[0,0]
                     detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
-                    # print("Crosswalk: ", self.closest_crosswalk)
-                    # print("Detection: ", detection.x, detection.y)
+
                     pedestrian_crossing_flag = monitors_functions.inside_polygon(detection,self.closest_crosswalk)
                     pedestrian_crossing_occupied.data = pedestrian_crossing_flag
                     if pedestrian_crossing_occupied.data:
-                        # print("Pedestrian Crossing Occupied: ", pedestrian_crossing_occupied.data)
                         break
 
             # Monitorized Intersections (Split, Merge, Intersection)
-            # print("Merge 1: ", merge_occupied.data, id(merge_occupied))
+
             if self.monitorized_intersections_rosmsg:
                 for bbox,type_object in zip(bboxes_features,types):
                     for lane in self.monitorized_intersections_rosmsg.lanes: 
@@ -531,7 +520,7 @@ class SmartMOT:
                             bbox = bbox.reshape(1,-1)
                             detection.x = bbox[0,0]
                             detection.y = -bbox[0,1] # N.B. In OpenDrive this coordinate is the opposite
-                            # print("Lane: ", lane)#, len(lane))
+
                             merge_flag,_,_,_ = monitors_functions.inside_lane(lane,detection,type_object)
                             merge_occupied.data = merge_flag
                             if merge_occupied.data:
@@ -540,7 +529,6 @@ class SmartMOT:
                     else: 
                         continue
                     break
-            # print("Merge 3: ", merge_occupied.data, id(merge_occupied))           
 
             # Monitors
 
@@ -607,7 +595,7 @@ class SmartMOT:
                         if self.ros:
                             # world_features = monitors_functions.tracker_to_topic_real(self,tracker,object_type,color) # world_features (w,l,h,x,y,z,id)
                             world_features = monitors_functions.tracker_to_topic(self,tracker,object_type,color)
-                            #print("WF: ", world_features)
+ 
                             if kitti:
                                 num_image = detections_rosmsg.header.seq-1 # Number of image in the dataset, e.g. 0000.txt -> 0
                                 object_properties = object_observation_angle,object_rotation,object_score
@@ -646,13 +634,7 @@ class SmartMOT:
                                 ego_y_global = -odom_rosmsg.pose.pose.position.y
 
                                 distance_to_object = math.sqrt(pow(ego_x_global-detection.x,2)+pow(ego_y_global-detection.y,2))
-                                distance_to_object -= 5 # QUITARLO, DEBERIA SER DISTANCIA CENTROIDE OBJETO A MORRO, EN VEZ DE LIDAR A LIDAR, POR ESO
-                                # LE METO ESTE OFFSET
-                                
-                                
-                                
-                                
-                                #print("Distance to object: ", distance_to_object)
+
                                 if distance_to_object < self.nearest_object_in_route:
                                     id_nearest = tracker[5]
                                     self.nearest_object_in_route = distance_to_object

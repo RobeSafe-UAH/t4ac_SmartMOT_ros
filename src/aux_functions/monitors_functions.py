@@ -700,6 +700,37 @@ def empty_trackers_list(self):
 
 # Braking distance-Velocity model
 
+def get_braking_distance(velocity_braking_distance_model,velocity_ms,distance_among_waypoints,minimum_distance):
+    """
+    Calculate how many waypoints (n) has to monitorize depending on the 
+    velocity of the ego_vehicle. For that purpose third party function is
+    used (fit_velocity_braking_distance_model())
+
+    Args:
+        velocity_braking_distance_model: Regression model to determine the braking distance
+                                         in function of the velocity
+        velocity_ms: Ego-vehicle velocity in m/s
+        distance_among_waypoints: Distance among waypoints in the hdmap. It is used to calculate
+                                  the number of waypoints based on the braking distance
+
+    Returns:
+        braking_distance: Distance in m to be monitorized
+        n: Number of waypoints in front of the vehicle to monitorize (braking_distance / distance_among_waypoints)
+    """
+    # Calculate braking distance
+    vel_km_h = velocity_ms*3.6 # m/s to km/h
+    pf = PolynomialFeatures()
+    braking_distance = velocity_braking_distance_model.predict(pf.fit_transform([[vel_km_h]]))[0,0]
+
+    if braking_distance <= minimum_distance:
+        braking_distance = minimum_distance
+
+    n_waypoints = float(braking_distance / distance_among_waypoints)
+    # Calculate n waypoints
+    n = math.ceil(n_waypoints) # round to upper int number
+
+    return braking_distance, n
+
 def fit_velocity_braking_distance_model():
     """
     This function creates a regression model to determine the braking distance in function of the velocity. It needs

@@ -24,9 +24,9 @@ import rospy
 import geometry_msgs.msg
 import visualization_msgs.msg
 
-import geometric_functions
-import monitors_functions
-import tracking_functions
+import src.aux_functions.geometric_functions as geometric_functions
+import src.aux_functions.monitors_functions as monitors_functions
+import src.aux_functions.tracking_functions as tracking_functions
 
 from t4ac_msgs.msg import Node
 

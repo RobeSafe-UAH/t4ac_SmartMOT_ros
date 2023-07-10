@@ -23,12 +23,22 @@ import numpy as np
 import math
 import time
 
-import geometric_functions
-import monitors_functions
-import sort_functions
+import src.aux_functions.geometric_functions as geometric_functions
+import src.aux_functions.monitors_functions as monitors_functions
+import src.aux_functions.sort_functions as sort_functions
+
 from filterpy.kalman import KalmanFilter # Bayesian filters imports
 from sklearn.preprocessing import PolynomialFeatures
-from sklearn.utils.linear_assignment_ import linear_assignment # Hungarian Algorithm 
+
+def linear_assignment(cost_matrix): # Hungarian Algorithm 
+  try:
+    import lap
+    _, x, y = lap.lapjv(cost_matrix, extend_cost=True)
+    return np.array([[y[i],i] for i in x if i >= 0]) #
+  except ImportError:
+    from scipy.optimize import linear_sum_assignment
+    x, y = linear_sum_assignment(cost_matrix)
+    return np.array(list(zip(x, y))) 
 
 # Kalman
 
